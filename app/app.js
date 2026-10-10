@@ -16,13 +16,13 @@ const GRADES=['Characters','Writing','Plot','Enjoyment'];
 function blank(){return {shelves:['favorites'],books:[],quotes:[],favs:{},projects:[],notes:[],tasks:[],dates:[],rhythm:[],rlog:{},goals:[]}}
 /* fill in anything missing so older or partial data never breaks a page */
 function fix(d){const b=blank();d=d&&typeof d==='object'&&!Array.isArray(d)?d:{};for(const k in b)if(!d[k]||typeof d[k]!=='object'||Array.isArray(d[k])!==Array.isArray(b[k]))d[k]=b[k];
-  d.books.forEach(x=>{x.sh=Array.isArray(x.sh)?x.sh:[];x.grades=x.grades&&typeof x.grades==='object'?x.grades:{}});d.projects.forEach(x=>{x.sessions=Array.isArray(x.sessions)?x.sessions:[]});return d}
+  d.books.forEach(x=>{x.sh=Array.isArray(x.sh)?x.sh:[];x.grades=x.grades&&typeof x.grades==='object'?x.grades:{}});d.projects.forEach(x=>{x.sessions=Array.isArray(x.sessions)?x.sessions:[];if(!Array.isArray(x.docs)){x.docs=x.file?[{id:'doc'+x.id,name:'Scrivener',url:x.file}]:[];delete x.file}});return d}
 let D=fix(Store.load());
 /* yesterday's unfinished picks quietly go back to their list */
 function newDay(){D.tasks.forEach(t=>{if(t.pick&&t.pick!==TODAY&&!t.done)t.pick=''})}
 newDay();
 function save(){Store.save(D)}
-const U={filter:'all',shelf:'',nf:'all',glvl:'year',gper:{...CUR},pop:null,undo:null,doneOpen:false,qi:-1};
+const U={gedit:'',filter:'all',shelf:'',nf:'all',glvl:'year',gper:{...CUR},pop:null,undo:null,doneOpen:false,qi:-1};
 
 /* ================= helpers ================= */
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -64,8 +64,10 @@ function gen(p){
   const st=Array.from({length:n},(_,k)=>`${k%2?b:a} ${k*100/n}% ${(k+1)*100/n}%`).join(',');
   return `<div class="gen" style="background:linear-gradient(180deg,${st})" aria-hidden="true"><span class="bl" style="background:${h%2?a:b}"></span></div>`;
 }
-const avg=b=>{const v=Object.values(b.grades||{}).filter(Boolean);return v.length?v.reduce((m,x)=>m+x,0)/v.length:0};
-const starsOf=n=>n?`<span class="stars" aria-label="${n.toFixed(1)} stars">★★★★★<i style="width:${n/5*100}%">★★★★★</i></span>`:'';
+/* grades go in quarter stars; the average is rounded to the nearest quarter too */
+const avg=b=>{const v=Object.values(b.grades||{}).filter(Boolean);return v.length?Math.round(v.reduce((m,x)=>m+x,0)/v.length*4)/4:0};
+const qfmt=n=>n.toFixed(2).replace(/0$/,'');
+const starsOf=n=>n?`<span class="stars" aria-label="${qfmt(n)} stars">★★★★★<i style="width:${n/5*100}%">★★★★★</i></span>`:'';
 const progress=b=>b.pmode==='pages'&&b.pages?pct(b.pg,b.pages):b.pmode==='pct'?Number(b.pct||0):null;
 const progTxt=b=>b.pmode==='pages'&&b.pages?`p. ${b.pg||0} of ${b.pages}`:b.pmode==='pct'?`${b.pct||0}%`:'not tracking pages';
 const perLabel=p=>{const L=lvlOf(p);if(L==='year')return p;if(L==='quarter'){const q=+p.slice(-1);return `Q${q} · ${MONTHS[(q-1)*3].slice(0,3)} to ${MONTHS[(q-1)*3+2].slice(0,3)}`}return MONTHS[+p.slice(5,7)-1]};
@@ -83,8 +85,13 @@ function gp(g){
   return {p:g.done?100:0,txt:g.done?'done':'not yet'};
 }
 const picked=t=>t.pick===TODAY&&!t.done;
+const pickedToday=t=>t.pick===TODAY;
+const pickRow=(t,cls)=>`<div class="${cls} ${t.done?'done':''}"><input type="checkbox" class="tick" ${t.done?`checked data-undone="${t.id}"`:`data-done="${t.id}"`} aria-label="${t.done?'Not done':'Done'}: ${esc(t.t)}">`;
 const lastWritten=p=>(p.sessions||[]).reduce((m,s)=>s.d>m?s.d:m,'');
-const phaseTxt=p=>PHASES[p.phase]+(p.ch&&p.phase!=='done'&&p.phase!=='plotting'?` · ch. ${esc(p.ch)}`:'');
+const plotOpen=p=>p.plot!==''&&p.plot!=null&&+p.plot<100;
+const phaseTxt=p=>PHASES[p.phase]+(p.phase==='plotting'&&plotOpen(p)?` · ${+p.plot}%`:'')+(p.ch&&p.phase!=='done'&&p.phase!=='plotting'?` · ch. ${esc(p.ch)}`:'');
+/* the stage chip, plus a small tag when writing has started before the plot is finished */
+const stageChips=(p,st='')=>`<span class="phase ph-${p.phase}" ${st}>${phaseTxt(p)}</span>${['writing','editing','revising'].includes(p.phase)&&plotOpen(p)?`<span class="phase ph-plotting" ${st}>plot ${+p.plot}%</span>`:''}`;
 
 /* click-to-type fields */
 const inl=(c,o,f,ph,cls='',extra='')=>`<input class="inl ${cls}" data-f="${c}|${o.id}|${f}" value="${esc(o[f]??'')}" placeholder="${esc(ph)}" aria-label="${esc(ph)}" ${extra}>`;
@@ -121,7 +128,7 @@ function quotePool(){return [...D.quotes.map(q=>{const b=byId(D.books,q.book);re
 function vHome(){
   const now=new Date(),hr=now.getHours();
   const hi=hr<12?'Good morning':hr<18?'Good afternoon':'Good evening';
-  const picks=D.tasks.filter(picked);
+  const picks=D.tasks.filter(pickedToday),left=picks.filter(t=>!t.done).length;
   const upcoming=D.dates.filter(d=>d.date>=TODAY).sort((a,b)=>a.date.localeCompare(b.date));
   const reading=D.books.filter(b=>b.st==='reading');
   const pins=D.projects.filter(p=>p.pin);
@@ -129,13 +136,13 @@ function vHome(){
   const doneN=D.rhythm.filter(r=>log[r.id]).length;
   const pool=quotePool();if(U.qi<0||U.qi>=pool.length)U.qi=Math.floor(Math.random()*pool.length);
   const q=pool[U.qi];
-  const sub=[picks.length?`${picks.length} thing${picks.length>1?'s':''} picked for today`:'nothing picked for today',upcoming[0]?`${upcoming[0].t.toLowerCase()} on ${nice(upcoming[0].date)}`:''].filter(Boolean).join(', and ');
+  const sub=[picks.length?`${left} of ${picks.length} picked thing${picks.length>1?'s':''} left`:'nothing picked for today',upcoming[0]?`${upcoming[0].t.toLowerCase()} on ${nice(upcoming[0].date)}`:''].filter(Boolean).join(', and ');
   return `<section class="hello"><div><p class="label" style="font-size:.85rem">${hi}, izzie</p><h1>${now.toLocaleDateString('en-US',{weekday:'long'})}, <em>${now.toLocaleDateString('en-US',{month:'long',day:'numeric'})}</em></h1></div></section>
   ${q?`<section class="qcard"><p class="kind">${q.kind}</p><blockquote>“${esc(q.text)}”</blockquote><p class="src">${q.book?`<button class="link" style="color:inherit;font-size:1rem" data-go="book/${q.book}">${esc(q.src)}</button>`:esc(q.src)}</p><button class="again" data-shuffle>another one</button></section>`:''}
   <div class="tiles">
    <section class="tile t-days w4 wide"><div class="th"><h2>Your day</h2><button class="link" data-go="days">open Days</button></div>
     <div class="split">
-     <div><p class="label">Picked for today</p>${picks.length?picks.map(t=>`<div class="row"><input type="checkbox" class="tick" data-done="${t.id}" aria-label="Done: ${esc(t.t)}"><span class="txt">${esc(t.t)}</span></div>`).join(''):'<p class="empty">Nothing picked. That\'s allowed.</p>'}</div>
+     <div><p class="label">Picked for today</p>${picks.length?picks.map(t=>`${pickRow(t,'row')}<span class="txt">${esc(t.t)}</span></div>`).join(''):'<p class="empty">Nothing picked. That\'s allowed.</p>'}</div>
      <div><p class="label" style="margin-bottom:8px">Every day · ${doneN} of ${D.rhythm.length}</p><div class="stickers">${D.rhythm.map(r=>`<button data-rhb="${r.id}" aria-pressed="${!!log[r.id]}">${esc(r.t)}</button>`).join('')}</div>
       <div class="week" aria-label="Last seven days">${[6,5,4,3,2,1,0].map(i=>{const k=off(-i),l=D.rlog[k]||{},n=D.rhythm.filter(r=>l[r.id]).length;return `<div><span class="label">${new Date(Date.now()-i*DAY).toLocaleDateString('en-US',{weekday:'narrow'})}</span><i class="${D.rhythm.length&&n>=Math.ceil(D.rhythm.length/2)?'on':''}" title="${n} done"></i></div>`}).join('')}</div></div>
     </div></section>
@@ -144,7 +151,7 @@ function vHome(){
    <section class="tile t-read w3"><div class="th"><h2>Reading now</h2><button class="link" data-go="reading">library</button></div>
     ${reading.map(b=>{const pr=progress(b);return `<button class="mini" data-go="book/${b.id}"><span>${cover(b)}</span><span><span class="tt">${esc(b.t)}</span><span class="label">${progTxt(b)}</span>${pr!==null?`<span class="bar" style="display:block;margin-top:6px"><i style="width:${pr}%"></i></span>`:''}</span></button>`}).join('')||'<p class="empty">Nothing open right now.</p>'}</section>
    <section class="tile t-write w3"><div class="th"><h2>On the desk</h2><button class="link" data-go="writing">all projects</button></div>
-    ${pins.map(p=>`<button class="mini" data-go="project/${p.id}"><span>${gen(p)}</span><span><span class="tt">${esc(p.t)}</span><span class="phase ph-${p.phase}">${phaseTxt(p)}</span><span class="label" style="display:block;margin-top:4px">${esc(p.at||'')}</span></span></button>`).join('')||'<p class="empty">Nothing pinned. Pin a project in Writing.</p>'}</section>
+    ${pins.map(p=>`<button class="mini" data-go="project/${p.id}"><span>${gen(p)}</span><span><span class="tt">${esc(p.t)}</span><span class="chiprow">${stageChips(p)}</span><span class="label" style="display:block;margin-top:4px">${esc(p.at||'')}</span></span></button>`).join('')||'<p class="empty">Nothing pinned. Pin a project in Writing.</p>'}</section>
   </div>`;
 }
 
@@ -188,7 +195,7 @@ function pBook(b){
     </div></aside>
    <div style="display:flex;flex-direction:column;gap:22px;min-width:0">
     <div>${inlT('books',b,'t','Title')}${inl('books',b,'a','Author','ser','style="color:var(--mute);margin-top:4px"')}
-     ${a?`<div style="margin-top:8px;display:flex;gap:10px;align-items:center">${starsOf(a)}<span class="label">${a.toFixed(1)} average</span></div>`:''}</div>
+     ${a?`<div style="margin-top:8px;display:flex;gap:10px;align-items:center">${starsOf(a)}<span class="label">${qfmt(a)} average</span></div>`:''}</div>
     ${['reading','paused','dnf'].includes(b.st)?`<div class="box"><h3>Progress</h3>
      <div class="seg" role="group" aria-label="Track progress by" style="align-self:flex-start">${[['pages','Pages'],['pct','Percent'],['none','Don\'t track']].map(([k,l])=>`<button data-pmode="${b.id}|${k}" aria-pressed="${b.pmode===k}">${l}</button>`).join('')}</div>
      ${b.pmode==='pages'?`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">On page ${inlN('books',b,'pg','Current page')} of ${inlN('books',b,'pages','Page count')}</div>`:b.pmode==='pct'?`<div style="display:flex;gap:8px;align-items:center">${inlN('books',b,'pct','Percent')} % through</div>`:''}
@@ -200,12 +207,11 @@ function pBook(b){
      <dt>Pages</dt><dd>${inlN('books',b,'pages','Page count',false)}</dd>
      <dt>Genre</dt><dd>${inl('books',b,'genre','Add a genre')}</dd>
      <dt>Format</dt><dd><select data-f="books|${b.id}|fmt" aria-label="Format">${['Physical','Ebook','Audiobook'].map(o=>`<option ${b.fmt===o?'selected':''}>${o}</option>`).join('')}</select></dd>
-     <dt>Copy</dt><dd><select data-f="books|${b.id}|own" aria-label="Copy">${['Own it','Want to buy','Borrowed','Library'].map(o=>`<option ${b.own===o?'selected':''}>${o}</option>`).join('')}</select></dd>
      <dt>Shelves</dt><dd>${D.shelves.map(s=>`<button class="chip" style="border:0;${b.sh.includes(s)?'background:#fff;color:#1D1C1A':''}" data-bsh="${b.id}|${esc(s)}" aria-pressed="${b.sh.includes(s)}">${esc(s)}</button>`).join('')}</dd>
     </dl>
     <div class="box"><h3>Your grades</h3>
-     <div class="grades">${GRADES.map(k=>`<b>${k}</b><span class="pick5">${[1,2,3,4,5].map(n=>`<button aria-label="${k} ${n} stars" class="${(b.grades[k]||0)>=n?'on':''}" data-grade="${b.id}|${k}|${n}">★</button>`).join('')}</span>`).join('')}</div>
-     <div class="avg"><b>${a?a.toFixed(1):'–'}</b><span class="label">${a?'average of '+Object.values(b.grades).filter(Boolean).length+' grades':'no grades yet'}</span></div></div>
+     <div class="grades">${GRADES.map(k=>{const v=b.grades[k]||0;return `<b>${k}</b><span class="pick5">${[1,2,3,4,5].map(n=>`<button aria-label="${k} ${n} stars" data-grade="${b.id}|${k}|${n}"><i style="width:${Math.max(0,Math.min(1,v-n+1))*100}%">★</i>★</button>`).join('')}<span class="gv">${v?qfmt(v):''}</span></span>`}).join('')}</div>
+     <div class="avg"><b>${a?qfmt(a):'–'}</b><span class="label">${a?'average of '+Object.values(b.grades).filter(Boolean).length+' grades':'no grades yet'}</span></div></div>
     <div class="box"><h3>Review</h3>${inlA('books',b,'review','Write what you thought. As long or short as you like.',5)}</div>
     <div class="box"><h3>Quotes</h3>
      ${qs.map(q=>`<div class="qitem"><p>“${esc(q.text)}”</p><button class="x" data-del="quote|${q.id}" aria-label="Delete quote">×</button>${q.page?`<span class="label">p. ${esc(q.page)}</span>`:''}</div>`).join('')||'<p class="label">None yet.</p>'}
@@ -227,9 +233,9 @@ function vWriting(){
   const projs=D.projects.filter(p=>tops.some(n=>n.proj===p.id));
   return head('Writing')+`
   <section class="sec"><div class="sh"><h2>Pinned</h2><div class="acts"><button class="btn" data-new="project">+ Project</button></div></div>
-   <div class="pins">${pins.map(p=>`<button class="pin" data-go="project/${p.id}"><span>${gen(p)}</span><span style="display:flex;flex-direction:column;gap:6px;min-width:0"><h3>${esc(p.t)}</h3><span class="phase ph-${p.phase}" style="align-self:flex-start">${phaseTxt(p)}</span><p>${esc(p.at||'')}</p></span></button>`).join('')||'<p class="empty">Nothing pinned.</p>'}</div></section>
+   <div class="pins">${pins.map(p=>`<button class="pin" data-go="project/${p.id}"><span>${gen(p)}</span><span style="display:flex;flex-direction:column;gap:6px;min-width:0"><h3>${esc(p.t)}</h3><span class="chiprow">${stageChips(p)}${p.words?`<span class="label">${fmt(p.words)} words</span>`:''}</span><p>${esc(p.at||'')}</p></span></button>`).join('')||'<p class="empty">Nothing pinned.</p>'}</div></section>
   <section class="sec"><div class="sh"><h2>Everything else</h2></div>
-   <div class="files">${rest.map(p=>{const [a,c]=GEN[hash(p.t)%GEN.length];return `<div class="file"><span class="ic" style="background:linear-gradient(180deg,${a} 0 50%,${c} 50%)"></span><button class="nm" data-go="project/${p.id}">${esc(p.t)}<small>${esc(p.k)}</small></button><span class="phase ph-${p.phase}" style="justify-self:start">${phaseTxt(p)}</span><span class="label op">${ago(p.opened)}</span><button class="pinbtn" data-pin="${p.id}" aria-label="Pin ${esc(p.t)}" title="Pin">☆</button></div>`}).join('')}</div></section>
+   <div class="files">${rest.map(p=>{const [a,c]=GEN[hash(p.t)%GEN.length];return `<div class="file"><span class="ic" style="background:linear-gradient(180deg,${a} 0 50%,${c} 50%)"></span><button class="nm" data-go="project/${p.id}">${esc(p.t)}<small>${esc(p.k)}</small></button><span class="chiprow">${stageChips(p)}</span><span class="label op">${ago(p.opened)}</span><button class="pinbtn" data-pin="${p.id}" aria-label="Pin ${esc(p.t)}" title="Pin">☆</button></div>`}).join('')}</div></section>
   <section class="sec"><div class="sh"><h2>Ideas</h2></div>
    <div class="chips" role="group" aria-label="Show">${[['all','All'],['loose','Loose'],...projs.map(p=>[p.id,p.t])].map(([k,l])=>`<button data-nf="${k}" aria-pressed="${NF===k}">${esc(l)}</button>`).join('')}</div>
    ${board(shown,NF!=='all'&&NF!=='loose'?'@'+NF:'')}</section>`;
@@ -247,12 +253,14 @@ function pProject(p){
   const ses=[...(p.sessions||[])].sort((a,b)=>b.d.localeCompare(a.d));
   return `<button class="back" data-go="writing">← Writing</button>
   <div class="ptop"><div>${gen(p)}</div><div style="min-width:0">${inlT('projects',p,'t','Title')}
-   <div class="pmeta">${inl('projects',p,'k','Kind','', 'style="width:7em"')}<button class="link" data-pin="${p.id}">${p.pin?'★ pinned':'☆ pin'}</button><button class="link" data-scriv="${p.id}">Open in Scrivener ↗</button>${p.file?`<button class="link" data-scrivedit="${p.id}">change link</button>`:''}</div></div></div>
+   <div class="pmeta">${inl('projects',p,'k','Kind','', 'style="width:7em"')}<button class="link" data-pin="${p.id}">${p.pin?'★ pinned':'☆ pin'}</button>${(p.docs||[]).map(x=>`<span class="doc"><button class="link" data-opendoc="${p.id}|${x.id}">${esc(x.name||'Document')} ↗</button><button class="ib" data-editdoc="${p.id}|${x.id}" aria-label="Edit ${esc(x.name)}" title="Edit link">✎</button></span>`).join('')}<button class="link" data-newdoc="${p.id}">+ document</button></div></div></div>
   <div class="ppage">
    <div style="display:flex;flex-direction:column;gap:22px;min-width:0">
     <div class="box" style="border:1px solid var(--line)"><h3>Where I'm at</h3>
      <div class="phases" role="group" aria-label="Stage">${Object.entries(PHASES).map(([k,l])=>`<button data-phase="${p.id}|${k}" aria-pressed="${p.phase===k}">${l}</button>`).join('')}</div>
      ${['writing','editing','revising'].includes(p.phase)?`<div style="display:flex;gap:8px;align-items:center">Chapter ${inl('projects',p,'ch','#','', 'style="width:4em;border-bottom-color:var(--line);text-align:center"')}</div>`:''}
+     ${p.phase!=='done'?`<div class="plotline">Plot ${inlN('projects',p,'plot','Plot done, percent')}% done${p.plot!==''&&p.plot!=null?`<span class="bar"><i style="width:${Math.min(100,+p.plot)}%"></i></span>`:''}</div>`:''}
+     <div style="display:flex;gap:8px;align-items:center">Words so far ${inlN('projects',p,'words','Words so far',false)}</div>
      ${inlA('projects',p,'at','Where you left off',2)}</div>
     <div class="box" style="border:1px solid var(--line)"><h3>Sessions</h3>
      <form class="logf" data-form="log|${p.id}"><select name="type" class="form-in" aria-label="Kind of session" style="width:auto">${['writing','plotting','editing','revising'].map(k=>`<option value="${k}" ${k===(p.phase==='done'?'writing':p.phase)?'selected':''}>${PHASES[k]}</option>`).join('')}</select><input name="w" class="form-in" type="number" inputmode="numeric" placeholder="words" aria-label="Words written"><input name="n" class="form-in note" placeholder="note" aria-label="Note"><button class="btn solid">Log</button></form>
@@ -277,7 +285,7 @@ function vDays(){
    ${past.length?`<p class="label">Passed: ${past.slice(0,3).map(d=>`<button class="link" data-edit="date|${d.id}">${esc(d.t)} (${nice(d.date)})</button>`).join(', ')}</p>`:''}</section>
   <div class="cols two">
    <section class="sec"><div class="sh"><h2>Picked for today</h2></div>
-    <div>${D.tasks.filter(picked).map(t=>`<div class="task2"><input type="checkbox" class="tick" data-done="${t.id}" aria-label="Done: ${esc(t.t)}">${inlW('tasks',t,'t','Task')}<span class="tacts"><button class="ib on" data-pick="${t.id}" aria-label="Unpick" title="Unpick">☀</button></span></div>`).join('')||'<p class="empty">Nothing picked.</p>'}</div></section>
+    <div>${D.tasks.filter(pickedToday).map(t=>`${pickRow(t,'task2')}${t.done?`<span class="txt">${esc(t.t)}</span>`:inlW('tasks',t,'t','Task')}<span class="tacts">${t.done?'':`<button class="ib on" data-pick="${t.id}" aria-label="Unpick" title="Unpick">☀</button>`}</span></div>`).join('')||'<p class="empty">Nothing picked.</p>'}</div></section>
    <section class="sec"><div class="sh"><h2>Every day</h2><span class="label">${D.rhythm.filter(r=>log[r.id]).length}/${D.rhythm.length}</span></div>
     <div>${D.rhythm.map(r=>`<div class="task2 ${log[r.id]?'done':''}"><input type="checkbox" class="tick" data-rh="${r.id}" ${log[r.id]?'checked':''} aria-label="${esc(r.t)}">${inl('rhythm',r,'t','Daily item')}<span class="tacts"><button class="ib" data-del="rhythm|${r.id}" aria-label="Remove ${esc(r.t)}">×</button></span></div>`).join('')}
     <form class="addline" data-form="rhythm"><input name="t" placeholder="+ Add" aria-label="New daily item"></form></div></section>
@@ -304,30 +312,52 @@ function vGoals(){
   <section class="sec"><div class="sh"><h2>${perLabel(P)}</h2><div class="acts"><button class="btn" data-new="goal|${P}">+ Goal</button></div></div>
    <div>${list.map(gRow).join('')||'<p class="empty">No goals here yet.</p>'}</div></section>`;
 }
+/* does period a hold period b? (a year holds its quarters and months, a quarter its months) */
+const holds=(a,b)=>{const L=lvlOf(a);return a!==b&&(L==='year'?b.startsWith(a):L==='quarter'?SUB.quarter(a).includes(b):false)};
+const planOpts=g=>{const L=lvlOf(g.per);return L==='year'?SUB.year(g.per).map(q=>[q,SUB.quarter(q)]):L==='quarter'?[[null,SUB.quarter(g.per)]]:[]};
+function sgCard(k,small){const kp=gp(k);return `<button class="sg ${small?'sm':''}" data-go="goal/${k.id}"><span>${small?`<span class="label">${perShort(k.per)}</span> `:''}${esc(k.t)}</span><span class="bar"><i style="width:${kp.p}%"></i></span><span class="label">${kp.txt}</span></button>`}
 function pGoal(g){
-  const L=lvlOf(g.per),pr=gp(g),sl=SUBLVL[L],subs=sl?SUB[L](g.per):[],ks=kidsOf(g);
-  const upL={quarter:'year',month:'quarter'}[L];
-  const parents=upL?D.goals.filter(x=>lvlOf(x.per)===upL&&x.id!==g.id&&SUB[upL](x.per).includes(g.per)):[];
+  const L=lvlOf(g.per),pr=gp(g),ks=kidsOf(g),ed=U.gedit===g.id;
+  const parents=L==='year'?[]:D.goals.filter(x=>x.id!==g.id&&holds(x.per,g.per));
   const perOpts=L==='year'?[Y,String(+Y+1)]:L==='quarter'?SUB.year(Y):Array.from({length:12},(_,i)=>Y+'-'+String(i+1).padStart(2,'0'));
-  const numKids=ks.some(k=>k.kind==='number');
+  const numKids=ks.some(k=>k.kind==='number'),manual=g.kind==='number'&&!g.auto&&!numKids;
+  const opts=planOpts(g),optHTML=c=>opts.map(([q,ms])=>q?`<optgroup label="Q${q.slice(-1)}"><option value="${q}" ${c&&c.per===q?'selected':''}>Q${q.slice(-1)} (whole)</option>${ms.map(m=>`<option value="${m}" ${c&&c.per===m?'selected':''}>${perShort(m)}</option>`).join('')}</optgroup>`:ms.map(m=>`<option value="${m}" ${c&&c.per===m?'selected':''}>${perShort(m)}</option>`).join('')).join('');
+  const sum=`<div class="gsum">
+     <div class="gsumtop">${g.kind==='number'?`<b class="big-n">${gval(g)}</b><span>of ${g.target||0}${g.unit?' '+esc(g.unit):''}</span>${manual?`<span class="stepper"><button data-gc="${g.id}|-1" aria-label="Minus one">−</button><button data-gc="${g.id}|1" aria-label="Plus one">+</button></span>`:''}`
+       :g.kind==='once'?`<label class="chk"><input type="checkbox" data-gdone="${g.id}" ${g.done?'checked':''}> Done</label>`:`<span>${pr.txt}</span>`}
+      <button class="link" data-gedit="${g.id}" style="margin-left:auto">${ed?'Close':'Edit'}</button></div>
+     <div class="bar" style="height:6px"><i style="width:${pr.p}%"></i></div></div>`;
+  const editor=ed?`<div class="box gbox">
+    <div class="seg" role="group" aria-label="Track by" style="align-self:flex-start">${[['number','A number'],['steps','Steps'],['once','Done or not']].map(([k,l])=>`<button data-gkind="${g.id}|${k}" aria-pressed="${g.kind===k}">${l}</button>`).join('')}</div>
+    ${g.kind==='number'?`<div class="count">${manual?`Now at ${inlN('goals',g,'v','Current')}`:''}<span>Target</span>${inlN('goals',g,'target','Target')}${inl('goals',g,'unit','books, days…','', 'style="width:8em"')}</div>
+      <label class="chk"><input type="checkbox" data-gauto="${g.id}" ${g.auto?'checked':''}> Count books I finish in Reading</label>`:''}
+   </div>`:'';
+  const steps=g.kind==='steps'?`<div class="steps">${(g.steps||[]).map((st,i)=>{const c=st.child&&byId(D.goals,st.child),dn=stepDone(st);return `<div class="row ${dn?'done':''}"><input type="checkbox" class="tick" data-gstep="${g.id}|${i}" ${dn?'checked':''} ${c?'disabled':''} aria-label="${esc(st.t)}"><input class="inl" data-gstept="${g.id}|${i}" value="${esc(st.t)}" aria-label="Step">${opts.length?`<select class="pselect when" data-gsper="${g.id}|${i}" aria-label="Plan it for"><option value="">—</option>${optHTML(c)}</select>`:''}${c?`<button class="ib" data-go="goal/${c.id}" aria-label="Open ${esc(st.t)}">↗</button>`:''}<button class="ib" data-gsdel="${g.id}|${i}" aria-label="Remove step">×</button></div>`}).join('')}
+       <form class="addline" data-form="gstep|${g.id}"><input name="t" placeholder="+ Add a step" aria-label="Add a step"></form></div>`:'';
+  let breakdown='';
+  if(L==='year'){
+    breakdown=`<section class="sec"><div class="sh"><h2>Quarters and months</h2>${g.kind==='number'&&g.target?`<div class="acts"><button class="btn sm" data-split="${g.id}|q">Split into quarters</button><button class="btn sm" data-split="${g.id}|m">…and months</button></div>`:''}</div>
+     <div class="slots">${SUB.year(g.per).map(q=>{const qk=ks.filter(k=>k.per===q),mk=ks.filter(k=>holds(q,k.per));
+       return `<div class="slot"><span class="label">${perLabel(q)}</span>${qk.map(k=>sgCard(k)+kidsOf(k).filter(m=>holds(q,m.per)).map(m=>sgCard(m,true)).join('')).join('')}${mk.map(m=>sgCard(m,true)).join('')}<button class="link" data-addsub="${g.id}|${q}">+ add</button></div>`}).join('')}</div></section>`;
+  }else if(L==='quarter'){
+    breakdown=`<section class="sec"><div class="sh"><h2>Months</h2>${g.kind==='number'&&g.target?`<button class="btn sm" data-split="${g.id}|m">Split into months</button>`:''}</div>
+     <div class="slots">${SUB.quarter(g.per).map(m=>`<div class="slot"><span class="label">${perLabel(m)}</span>${ks.filter(k=>k.per===m).map(k=>sgCard(k)).join('')}<button class="link" data-addsub="${g.id}|${m}">+ add</button></div>`).join('')}</div></section>`;
+  }
   return `<button class="back" data-go="goals">← Goals</button>
   <div class="gpage">
    ${inlT('goals',g,'t','Goal')}
    <div class="pmeta"><select class="pselect" data-gperset="${g.id}" aria-label="When">${perOpts.map(p=>`<option value="${p}" ${p===g.per?'selected':''}>${perLabel(p)}</option>`).join('')}</select>
-    ${upL?`<select class="pselect" data-f="goals|${g.id}|parent" aria-label="Part of"><option value="">Stands alone</option>${parents.map(x=>`<option value="${x.id}" ${g.parent===x.id?'selected':''}>Part of: ${esc(x.t)}</option>`).join('')}</select>`:''}</div>
-   <div class="box gbox">
-    <div class="seg" role="group" aria-label="Track by" style="align-self:flex-start">${[['number','A number'],['steps','Steps'],['once','Done or not']].map(([k,l])=>`<button data-gkind="${g.id}|${k}" aria-pressed="${g.kind===k}">${l}</button>`).join('')}</div>
-    ${g.kind==='number'?`<div class="count">${g.auto||numKids?`<b class="big-n">${gval(g)}</b>`:`<span class="stepper"><button data-gc="${g.id}|-1" aria-label="Minus one">−</button><button data-gc="${g.id}|1" aria-label="Plus one">+</button></span>${inlN('goals',g,'v','Current')}`}<span>of</span>${inlN('goals',g,'target','Target')}${inl('goals',g,'unit','books, days…','', 'style="width:8em"')}</div>
-      <label class="chk"><input type="checkbox" data-gauto="${g.id}" ${g.auto?'checked':''}> Count books I finish in Reading</label>`
-     :g.kind==='steps'?`<div class="steps">${(g.steps||[]).map((s,i)=>{const c=s.child&&byId(D.goals,s.child),dn=stepDone(s);return `<div class="row ${dn?'done':''}"><input type="checkbox" class="tick" data-gstep="${g.id}|${i}" ${dn?'checked':''} ${c?'disabled':''} aria-label="${esc(s.t)}"><input class="inl" data-gstept="${g.id}|${i}" value="${esc(s.t)}" aria-label="Step">${sl?`<select class="pselect when" data-gsper="${g.id}|${i}" aria-label="Plan it for"><option value="">—</option>${subs.map(p=>`<option value="${p}" ${c&&c.per===p?'selected':''}>${perShort(p)}</option>`).join('')}</select>`:''}${c?`<button class="ib" data-go="goal/${c.id}" aria-label="Open ${esc(s.t)}">↗</button>`:''}<button class="ib" data-gsdel="${g.id}|${i}" aria-label="Remove step">×</button></div>`}).join('')}
-       <form class="addline" data-form="gstep|${g.id}"><input name="t" placeholder="+ Add a step" aria-label="Add a step"></form></div>`
-     :`<label class="chk"><input type="checkbox" data-gdone="${g.id}" ${g.done?'checked':''}> Done</label>`}
-    <div class="bar" style="height:6px"><i style="width:${pr.p}%"></i></div><span class="label">${pr.txt}</span>
-   </div>
-   ${sl?`<section class="sec"><div class="sh"><h2>${sl==='quarter'?'Quarters':'Months'}</h2>${g.kind==='number'&&g.target?`<button class="btn sm" data-split="${g.id}">Split evenly</button>`:''}</div>
-    <div class="slots">${subs.map(s=>{const sk=ks.filter(k=>k.per===s);return `<div class="slot"><span class="label">${perLabel(s)}</span>${sk.map(k=>{const kp=gp(k);return `<button class="sg" data-go="goal/${k.id}"><span>${esc(k.t)}</span><span class="bar"><i style="width:${kp.p}%"></i></span><span class="label">${kp.txt}</span></button>`}).join('')}<button class="link" data-addsub="${g.id}|${s}">+ add</button></div>`}).join('')}</div></section>`:''}
+    ${L!=='year'?`<select class="pselect" data-f="goals|${g.id}|parent" aria-label="Part of"><option value="">Stands alone</option>${parents.map(x=>`<option value="${x.id}" ${g.parent===x.id?'selected':''}>Part of: ${esc(x.t)} (${perShort(x.per)})</option>`).join('')}</select>`:''}</div>
+   ${sum}${editor}${steps}${breakdown}
    <button class="link danger" style="margin-top:32px;align-self:flex-start" data-del="goal|${g.id}">Delete goal</button>
   </div>`;
+}
+/* split a number goal evenly into the next level down; "m" on a year goal goes all the way to months */
+function splitGoal(g,deep){
+  const L=lvlOf(g.per),subs=SUB[L](g.per),n=subs.length,base=Math.floor((g.target||0)/n),extra=(g.target||0)%n;
+  subs.forEach((sp,ix)=>{let k=kidsOf(g).find(x=>x.per===sp&&x.kind==='number');
+    if(!k){const share=base+(ix<extra?1:0);let t=g.t.includes(String(g.target))?g.t.replace(String(g.target),share):`${g.t} (${perShort(sp)})`;if(share===1)t=t.replace(/\b1 (\w+)s\b/,'1 $1');k={id:id(),per:sp,parent:g.id,t,kind:'number',target:share,unit:g.unit,auto:g.auto,v:0,steps:[]};D.goals.push(k)}
+    if(deep&&lvlOf(sp)==='quarter')splitGoal(k,false)});
 }
 
 /* ================= centered popups (small things) ================= */
@@ -339,12 +369,12 @@ const F={
  sel:(k,l,v,opts)=>`<label class="f"><span>${l}</span><select name="${k}">${opts.map(o=>{const [val,lab]=Array.isArray(o)?o:[o,o];return `<option value="${esc(val)}" ${String(v)===String(val)?'selected':''}>${esc(lab)}</option>`}).join('')}</select></label>`
 };
 const two=(a,b)=>`<div class="f2">${a}${b}</div>`;
-const SCRIVHINT='<p class="hint">In Scrivener, open the project, click the Draft folder, then choose Edit → Copy Special → Copy Document Link. Paste that here and the button will open it.</p>';
+const DOCHINT='<p class="hint"><b>Scrivener:</b> click the Draft folder, then Edit → Copy Special → Copy Document Link.<br><b>Pages:</b> save it in iCloud Drive, then Share → Copy Link.</p>';
 function pop(kind,obj,isNew){
   let title='',body='';
   if(kind==='book'){title='Add a book';body=`<label class="f"><span>Search</span><input name="q" type="search" placeholder="Title or author" data-olq autocomplete="off"></label><div class="olres" aria-live="polite"></div>`+two(F.text('t','Title',''),F.text('a','Author',''))+F.sel('st','Status','want',Object.entries(ST).map(([k,v])=>[k,v[0]]))}
-  if(kind==='project'){title='New project';body=F.text('t','Title',obj.t||'')+F.text('k','Kind','Novel','Novel, short story, poetry…')+F.text('file','Scrivener link (optional)','','Paste it from Scrivener')+SCRIVHINT}
-  if(kind==='scriv'){title='Scrivener link';body=F.text('file','Link',obj.file,'x-scrivener-item://…')+SCRIVHINT}
+  if(kind==='project'){title='New project';body=F.text('t','Title',obj.t||'')+F.text('k','Kind','Novel','Novel, short story, poetry…')+two(F.text('name','Document name (optional)','Scrivener'),F.text('url','Link (optional)','','Paste the link'))+DOCHINT}
+  if(kind==='doc'){title=isNew?'Add a document':'Document';body=F.text('name','Name',obj.name,'Scrivener, Pages draft…')+F.text('url','Link',obj.url,'Paste the link')+DOCHINT}
   if(kind==='cover'){title='Cover image';body=F.text('cover','Image link',obj.cover==='none'?'':obj.cover,'https://…')+'<p class="hint">Right-click a cover image anywhere online, copy the image address, and paste it here.</p>'}
   if(kind==='quote'){title=isNew?'Add a quote':'Quote';body=F.area('text','Quote',obj.text)+two(F.sel('book','Book',obj.book,D.books.map(b=>[b.id,b.t])),F.text('page','Page',obj.page))}
   if(kind==='shelf'){title='New shelf';body=F.text('name','Shelf name','','cozy, rereads, summer…')}
@@ -356,7 +386,7 @@ function pop(kind,obj,isNew){
     +F.sel('kind','Track by',obj.kind||'steps',[['number','A number'],['steps','Steps'],['once','Done or not']])
     +two(F.num('target','Target (for a number)',obj.target),F.text('unit','Unit',obj.unit||'','books, days…'))}
   U.pop={kind,id:obj.id,isNew,obj};
-  const canDel=!isNew&&['quote','task','date'].includes(kind);
+  const canDel=!isNew&&['quote','task','date','doc'].includes(kind);
   document.getElementById('layer').innerHTML=`<div class="scrim" data-scrim><div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}">
    <h2>${esc(title)}</h2>
    <form data-form="pop" style="display:flex;flex-direction:column;gap:12px">${body}
@@ -369,9 +399,9 @@ function applyPop(f){
   const {kind,id:oid,isNew}=U.pop;const v=readForm(f);const T=s=>(s||'').trim();
   if(kind==='shelf'){const n=T(v.name).toLowerCase();if(n&&!D.shelves.includes(n))D.shelves.push(n);return close()}
   if(kind==='book'){if(!T(v.a)&&!T(v.t))return;const ol=U.pop.ol&&U.pop.ol.title===T(v.t)?U.pop.ol:null;const b={id:id(),t:T(v.t)||'Untitled',a:T(v.a),st:v.st,fmt:'Physical',sh:[],own:'Own it',times:0,grades:{},review:'',notes:'',genre:'',pages:ol&&ol.pages||'',pmode:'pages',pg:'',pct:'',start:v.st==='reading'?TODAY:'',end:'',cover:ol&&ol.cover||''};D.books.push(b);close(false);toast('Added');if(!b.cover)findCover(b).then(ok=>{if(ok)render()});return go('book/'+b.id)}
-  if(kind==='scriv'){const p=byId(D.projects,oid);if(p)p.file=T(v.file);return close()}
+  if(kind==='doc'){const p=byId(D.projects,U.pop.proj);if(!p||!T(v.url))return;p.docs=p.docs||[];if(isNew)p.docs.push({id:id(),name:T(v.name)||'Document',url:T(v.url)});else Object.assign(byId(p.docs,oid)||{},{name:T(v.name)||'Document',url:T(v.url)});return close()}
   if(kind==='cover'){const b=byId(D.books,oid);if(b)b.cover=T(v.cover)||'none';return close()}
-  if(kind==='project'){if(!T(v.t))return;const p={id:id(),t:T(v.t),k:T(v.k),pin:true,phase:'plotting',ch:'',at:U.pop.seed||'',notes:'',file:T(v.file),opened:TODAY,sessions:[]};D.projects.push(p);if(U.pop.idea){const i=byId(D.notes,U.pop.idea);if(i)i.proj=p.id}close(false);toast('Project started');return go('project/'+p.id)}
+  if(kind==='project'){if(!T(v.t))return;const p={id:id(),t:T(v.t),k:T(v.k),pin:false,phase:'plotting',ch:'',at:U.pop.seed||'',notes:'',docs:T(v.url)?[{id:id(),name:T(v.name)||'Scrivener',url:T(v.url)}]:[],plot:'',words:'',opened:TODAY,sessions:[]};D.projects.push(p);if(U.pop.idea){const i=byId(D.notes,U.pop.idea);if(i)i.proj=p.id}close(false);toast('Project started');return go('project/'+p.id)}
   if(kind==='goal'){if(!T(v.t))return;const o=U.pop.obj,g={id:id(),t:T(v.t),per:o.per,parent:o.parent||'',kind:v.kind,target:Number(v.target||0),unit:T(v.unit),auto:!!o.auto&&v.kind==='number',v:0,steps:[],done:false};D.goals.push(g);close(false);toast('Goal added');return go('goal/'+g.id)}
   const coll=D[COLL[kind]];let o=isNew?{id:id()}:byId(coll,oid);
   if(kind==='quote'){if(!T(v.text))return;Object.assign(o,{text:T(v.text),book:v.book,page:v.page})}
@@ -417,13 +447,14 @@ document.addEventListener('click',e=>{
   if('undo' in d){undo();return}
   if(d.edit){const [k,i]=d.edit.split('|');const o=byId(D[COLL[k]],i);if(o)pop(k,o,false);return}
   if(d.new){const [k,ref]=d.new.split('|');const o=k==='goal'?(ref==='books'?{per:Y,kind:'number',unit:'books',auto:true,target:12}:{per:ref||U.gper[U.glvl],kind:'steps'}):k==='quote'?{text:'',book:D.books.find(b=>b.st==='reading')?.id||D.books[0]?.id,page:''}:k==='date'?{t:'',date:TODAY,tag:''}:{kind:ref};pop(k,o,true);return}
-  if('delpop' in d){const {kind,id:oid}=U.pop;close(false);remove(kind,oid);return}
+  if('delpop' in d){const {kind,id:oid}=U.pop;if(kind==='doc'){const p=byId(D.projects,U.pop.proj);p.docs=p.docs.filter(x=>x.id!==oid);close();toast('Link removed');return}close(false);remove(kind,oid);return}
   if(d.del){const [k,i]=d.del.split('|');remove(k,i);return}
   if(d.promote){const s=byId(D.notes,d.promote);pop('project',{t:s.title},true);U.pop.idea=s.id;return}
   if('newcard' in d){const r=d.newcard,n={id:id(),title:'',body:'',proj:r.startsWith('@')?r.slice(1):'',parent:r&&!r.startsWith('@')?r:''};D.notes.push(n);save();go('card/'+n.id);setTimeout(()=>document.querySelector('textarea.big')?.focus(),50);return}
   if(d.addsub){const [gi,per]=d.addsub.split('|');pop('goal',{per,parent:gi,kind:'steps'},true);return}
-  if(d.scrivedit){pop('scriv',byId(D.projects,d.scrivedit),false);return}
-  if(d.scriv){const p=byId(D.projects,d.scriv);p.opened=TODAY;save();if(/^(x-scrivener-item|scrivener|file):/i.test(p.file||''))location.href=p.file;else pop('scriv',p,false);return}
+  if(d.newdoc){pop('doc',{name:'',url:''},true);U.pop.proj=d.newdoc;return}
+  if(d.editdoc){const [pi,di]=d.editdoc.split('|');pop('doc',byId(byId(D.projects,pi).docs,di),false);U.pop.proj=pi;return}
+  if(d.opendoc){const [pi,di]=d.opendoc.split('|');const p=byId(D.projects,pi),x=byId(p.docs,di);p.opened=TODAY;save();if(/^https?:/i.test(x.url))window.open(x.url,'_blank','noopener');else location.href=x.url;return}
   if('shuffle' in d){const n=quotePool().length;if(n>1){let k;do{k=Math.floor(Math.random()*n)}while(k===U.qi);U.qi=k}}
   else if(d.rhb){D.rlog[TODAY]=D.rlog[TODAY]||{};D.rlog[TODAY][d.rhb]=!D.rlog[TODAY][d.rhb]}
   else if(d.filter){U.filter=d.filter}
@@ -433,7 +464,7 @@ document.addEventListener('click',e=>{
   else if(d.pmode){const [i,m]=d.pmode.split('|');byId(D.books,i).pmode=m}
   else if(d.times){const [i,n]=d.times.split('|');const b=byId(D.books,i);b.times=Math.max(0,(b.times||0)+Number(n))}
   else if(d.bsh){const [i,s]=d.bsh.split('|');const b=byId(D.books,i);b.sh=b.sh.includes(s)?b.sh.filter(x=>x!==s):[...b.sh,s]}
-  else if(d.grade){const [i,k,n]=d.grade.split('|');const b=byId(D.books,i);b.grades[k]=b.grades[k]===+n?0:+n}
+  else if(d.grade){const [i,k,n]=d.grade.split('|');const b=byId(D.books,i),cur=b.grades[k]||0,N=+n;b.grades[k]=cur>N-1&&cur<=N?(cur-.25<=N-1?0:cur-.25):N}
   else if(d.pin){const p=byId(D.projects,d.pin);p.pin=!p.pin;toast(p.pin?'Pinned':'Unpinned')}
   else if(d.phase){const [i,ph]=d.phase.split('|');byId(D.projects,i).phase=ph}
   else if(d.mv){const [i,dir]=d.mv.split('|');const o=['now','soon','later'];const tk=byId(D.tasks,i);tk.when=o[o.indexOf(tk.when)+Number(dir)]}
@@ -444,8 +475,8 @@ document.addEventListener('click',e=>{
   else if(d.gper){U.gper[U.glvl]=d.gper}
   else if(d.nf){U.nf=d.nf}
   else if(d.gkind){const [i,k]=d.gkind.split('|');byId(D.goals,i).kind=k}
-  else if(d.split){const g=byId(D.goals,d.split),subs=SUB[lvlOf(g.per)](g.per),n=subs.length,base=Math.floor(g.target/n),extra=g.target%n;
-    subs.forEach((sp,ix)=>{if(kidsOf(g).some(k=>k.per===sp&&k.kind==='number'))return;const share=base+(ix<extra?1:0);const t=g.t.includes(String(g.target))?g.t.replace(String(g.target),share):`${g.t} (${perShort(sp)})`;D.goals.push({id:id(),per:sp,parent:g.id,t,kind:'number',target:share,unit:g.unit,auto:g.auto,v:0,steps:[]})});toast('Split into '+n)}
+  else if(d.split){const [gi,how]=d.split.split('|'),g=byId(D.goals,gi);splitGoal(g,how==='m'&&lvlOf(g.per)==='year');toast(how==='m'?'Split into months':'Split into quarters')}
+  else if(d.gedit){U.gedit=U.gedit===d.gedit?'':d.gedit}
   else if(d.gc){const [i,n]=d.gc.split('|');const g=byId(D.goals,i);g.v=Math.max(0,(Number(g.v)||0)+Number(n))}
   else if(d.gsdel){const [i,n]=d.gsdel.split('|');const g=byId(D.goals,i),[st]=g.steps.splice(+n,1);const c=st&&st.child&&byId(D.goals,st.child);if(c)c.parent=''}
   else if('export' in d){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(D,null,1)],{type:'application/json'}));a.download=`second-brain-${TODAY}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);return}
@@ -466,7 +497,7 @@ document.addEventListener('change',e=>{
     if(x.value){if(c)c.per=x.value;else{c={id:id(),per:x.value,parent:g.id,t:st.t,kind:'steps',steps:[]};D.goals.push(c);st.child=c.id}}
     else if(c){if(!(c.steps||[]).length&&!kidsOf(c).length)D.goals=D.goals.filter(k=>k.id!==c.id);else c.parent='';st.child=''}
     render();return}
-  if(d.gperset){const g=byId(D.goals,d.gperset);g.per=x.value;const par=byId(D.goals,g.parent);if(par&&!(SUB[lvlOf(par.per)]?.(par.per)||[]).includes(g.per))g.parent='';render();return}
+  if(d.gperset){const g=byId(D.goals,d.gperset);g.per=x.value;const par=byId(D.goals,g.parent);if(par&&!holds(par.per,g.per))g.parent='';render();return}
   if(d.gauto){byId(D.goals,d.gauto).auto=x.checked;render();return}
   if(d.gdone){byId(D.goals,d.gdone).done=x.checked;render();return}
   if(d.gstep){const [i,n]=d.gstep.split('|');byId(D.goals,i).steps[+n].done=x.checked;render();return}

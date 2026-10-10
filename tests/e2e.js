@@ -15,6 +15,7 @@ async function device(browser,name,{sync,mobile}){
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/,r=>r.fulfill({status:200,body:'',contentType:'text/css'}));
   await ctx.route(/openlibrary\.org\/search\.json/,r=>{const q=new globalThis.URL(r.request().url()).searchParams.get('q');r.fulfill({json:{docs:[{title:q.includes('Eden')?'East of Eden':'Piranesi',author_name:[q.includes('Eden')?'John Steinbeck':'Susanna Clarke'],cover_i:123,number_of_pages_median:601,first_publish_year:1952}]}})});
   await ctx.route(/covers\.openlibrary\.org/,r=>r.fulfill({body:COVER,contentType:'image/png'}));
+  if(!sync)await ctx.route(/config\.js$/,r=>r.fulfill({body:'window.SB_CONFIG={}',contentType:'text/javascript'}));
   if(sync){
     await ctx.route(/config\.js$/,r=>r.fulfill({body:"window.SB_CONFIG={url:'https://x.supabase.co',key:'anon'}",contentType:'text/javascript'}));
     await ctx.route(/vendor\/supabase\.js$/,r=>r.fulfill({body:fs.readFileSync(__dirname+'/fake-supabase.js','utf8'),contentType:'text/javascript'}));
@@ -45,11 +46,17 @@ const settle=p=>p.waitForTimeout(1600);
   if(!(await P.$('.bpage img.real')))fail('cover not shown after picking search result');
   if(await P.inputValue('[data-f$="|pages"][data-rr]')!=='601')fail('pages not filled from search');
   await P.fill('[data-f$="|pg"]','120');await P.press('[data-f$="|pg"]','Enter');
-  await P.click('[data-grade$="|Writing|4"]');
+  await P.click('[data-grade$="|Writing|4"]');await P.click('[data-grade$="|Writing|4"]');
+  await P.click('[data-grade$="|Plot|3"]');
+  if(!(await P.textContent('.avg')).includes('3.5'))fail('quarter average wrong: '+await P.textContent('.avg'));  // (3.75+3)/2=3.375 -> 3.5
   await shot(P,'03-book-page-phone');
   // book typed by hand gets a cover looked up in the background
   await P.click('[data-go="reading"]');await P.click('[data-new="book"]');await P.fill('.modal [name=t]','Piranesi');await P.fill('.modal [name=a]','Susanna Clarke');await P.click('.modal .btn.solid');
   await P.waitForSelector('.bpage img.real',{timeout:4000}).catch(()=>fail('background cover lookup failed'));
+  await P.click('[data-bst$="|read"]');await P.click('[data-grade$="|Enjoyment|3"]');
+  await P.click('[data-go="reading"]');
+  const sw=await P.evaluate(()=>{const s=document.querySelector('.gbook .stars');return s&&[s.getBoundingClientRect().width,s.querySelector('i').getBoundingClientRect().width]});
+  if(!sw||Math.abs(sw[1]/sw[0]-0.6)>0.05)fail('shelf stars do not match a 3.0 rating: '+sw);
   // Days
   await P.click('nav [data-go="days"]');
   await P.fill('form[data-form="rhythm"] input','Drink water');await P.press('form[data-form="rhythm"] input','Enter');
@@ -60,14 +67,29 @@ const settle=p=>p.waitForTimeout(1600);
   // Writing
   await P.click('nav [data-go="writing"]');await P.click('[data-new="project"]');await P.fill('.modal [name=t]','The Lighthouse');await P.click('.modal .btn.solid');
   await P.waitForSelector('.ptop');await P.fill('form[data-form^="log|"] input[name=w]','800');await P.click('form[data-form^="log|"] .btn');
-  await P.click('[data-scriv]');await P.waitForSelector('.modal');await P.fill('.modal [name=file]','x-scrivener-item:///Users/izzie/Lighthouse.scriv?id=1');await P.click('.modal .btn.solid');
+  await P.click('[data-newdoc]');await P.waitForSelector('.modal');await P.fill('.modal [name=name]','Scrivener');await P.fill('.modal [name=url]','x-scrivener-item:///Users/izzie/Lighthouse.scriv?id=1');await P.click('.modal .btn.solid');
+  if(!(await P.$('[data-opendoc]')))fail('document link not added');
+  await P.click('[data-phase$="|writing"]');await P.fill('[data-f$="|plot"]','70');await P.press('[data-f$="|plot"]','Enter');
+  await P.click('[data-go="writing"]');
+  if(await P.$('.pins .pin'))fail('new project should start unpinned');
+  if(!(await P.textContent('.files')).includes('plot 70%'))fail('plot tag missing');
+  await P.click('.files [data-pin]');await P.click('[data-go^="project/"]');
   await shot(P,'05-project-phone');
   // Goals
   await P.click('nav [data-go="goals"]');await P.click('[data-new^="goal"]');await P.fill('.modal [name=t]','Read 20 books');await P.selectOption('.modal [name=kind]','number');await P.fill('.modal [name=target]','20');await P.click('.modal .btn.solid');
-  await P.waitForSelector('.gpage');await shot(P,'06-goal-phone');
+  await P.waitForSelector('.gpage');
+  if(await P.$('.gbox'))fail('goal settings should be closed until Edit');
+  await P.click('[data-split$="|m"]');
+  const kidsN=await P.evaluate(()=>D.goals.length);if(kidsN!==1+4+12)fail('split into quarters and months made '+kidsN+' goals');
+  if((await P.$$('.sg.sm')).length!==12)fail('months not shown under quarters');
+  await P.click('[data-gedit]');if(!(await P.$('.gbox')))fail('Edit did not open settings');
+  await shot(P,'06-goal-phone');
   // Today reflects everything, and survives reload
-  await P.click('.mark');await P.click('[data-rhb]');await P.reload();await P.waitForSelector('.hello');
+  await P.click('.mark');await P.click('[data-rhb]');
+  await P.click('.hello ~ * [data-done], .tiles [data-done]');await P.waitForTimeout(400);
+  if(!(await P.$('.tiles .row.done')))fail('ticked pick should stay on Today, struck through');await P.reload();await P.waitForSelector('.hello');
   const today=await P.textContent('#main');
+  if(!(await P.$('.tiles .row.done')))fail('ticked pick gone after reload');
   for(const w of ['Return library books','East of Eden','The Lighthouse','Dentist'])if(!today.includes(w))fail('Today missing '+w);
   if(!(await P.$('[data-rhb][aria-pressed="true"]')))fail('rhythm tick not saved');
   await shot(P,'07-today-phone');

@@ -371,3 +371,20 @@ textarea.tname:focus{background:var(--soft)}
 @media (hover:none) and (pointer:coarse){input:not(.big):not(.mid):not(.ser):not([type=checkbox]),select,textarea:not(.big):not(.notebody){font-size:max(16px,1em)!important}}
 html{-webkit-text-size-adjust:100%}
 .grid>.empty,.now>.empty,.pins>.empty,.quotes>.empty,.dates>.empty{grid-column:1/-1}
+
+/* round 5 */
+.stars{width:max-content}
+.pick5{align-items:center}
+.pick5 button{position:relative;color:rgba(255,255,255,.28)}
+.pick5 button i{position:absolute;left:1px;top:0;overflow:hidden;white-space:nowrap;color:var(--acc);font-style:normal;pointer-events:none}
+.pick5 .gv{font-family:var(--mono);font-size:.74rem;color:var(--mute);min-width:3.2em;margin-left:8px}
+.chiprow{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.doc{display:inline-flex;align-items:center;gap:0}
+.doc .ib{width:22px;height:22px;font-size:.8rem}
+.plotline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.plotline .bar{flex:1;min-width:80px;height:5px}
+.gsum{display:flex;flex-direction:column;gap:10px;max-width:640px}
+.gsumtop{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.sg.sm{background:none;border:1px solid var(--line);padding:6px 10px;gap:4px;font-size:.9rem;margin-left:10px;width:calc(100% - 10px)}
+.sg.sm>span:first-child{font-weight:500;font-family:var(--sans)}
+.row.done .txt,.task2.done .txt{color:var(--mute);text-decoration:line-through}
