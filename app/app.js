@@ -16,13 +16,13 @@ const GRADES=['Characters','Writing','Plot','Enjoyment'];
 function blank(){return {shelves:['favorites'],books:[],quotes:[],favs:{},projects:[],notes:[],tasks:[],dates:[],rhythm:[],rlog:{},goals:[]}}
 /* fill in anything missing so older or partial data never breaks a page */
 function fix(d){const b=blank();d=d&&typeof d==='object'&&!Array.isArray(d)?d:{};for(const k in b)if(!d[k]||typeof d[k]!=='object'||Array.isArray(d[k])!==Array.isArray(b[k]))d[k]=b[k];
-  d.books.forEach(x=>{x.sh=Array.isArray(x.sh)?x.sh:[];x.grades=x.grades&&typeof x.grades==='object'?x.grades:{}});d.projects.forEach(x=>{x.sessions=Array.isArray(x.sessions)?x.sessions:[];if(!Array.isArray(x.docs)){x.docs=x.file?[{id:'doc'+x.id,name:'Scrivener',url:x.file}]:[];delete x.file}});return d}
+  d.books.forEach(x=>{x.sh=Array.isArray(x.sh)?x.sh:[];if(!Array.isArray(x.tags)){x.tags=(x.genre||'').split(',').map(t=>t.trim().toLowerCase()).filter(Boolean);delete x.genre}x.grades=x.grades&&typeof x.grades==='object'?x.grades:{}});d.projects.forEach(x=>{x.sessions=Array.isArray(x.sessions)?x.sessions:[];if(!Array.isArray(x.docs)){x.docs=x.file?[{id:'doc'+x.id,name:'Scrivener',url:x.file}]:[];delete x.file}});return d}
 let D=fix(Store.load());
 /* yesterday's unfinished picks quietly go back to their list */
 function newDay(){D.tasks.forEach(t=>{if(t.pick&&t.pick!==TODAY&&!t.done)t.pick=''})}
 newDay();
 function save(){Store.save(D)}
-const U={gedit:'',filter:'all',shelf:'',nf:'all',glvl:'year',gper:{...CUR},pop:null,undo:null,doneOpen:false,qi:-1};
+const U={rf:{},rq:'',gedit:'',filter:'all',shelf:'',nf:'all',glvl:'year',gper:{...CUR},pop:null,undo:null,doneOpen:false,qi:-1};
 
 /* ================= helpers ================= */
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -71,6 +71,7 @@ function gen(p){
 }
 /* grades go in quarter stars; the average is rounded to the nearest quarter too */
 const avg=b=>{const v=Object.values(b.grades||{}).filter(Boolean);return v.length?Math.round(v.reduce((m,x)=>m+x,0)/v.length*4)/4:0};
+const SORTS={recent:['recently finished',(a,b)=>(b.end||'').localeCompare(a.end||'')],rating:['my rating',(a,b)=>avg(b)-avg(a)],title:['title',(a,b)=>a.t.localeCompare(b.t)],author:['author',(a,b)=>(a.a.split(' ').pop()||'').localeCompare(b.a.split(' ').pop()||'')],pages:['longest',(a,b)=>(+b.pages||0)-(+a.pages||0)]};
 const qfmt=n=>n.toFixed(2).replace(/0$/,'');
 const starsOf=n=>n?`<span class="stars" aria-label="${qfmt(n)} stars">★★★★★<i style="width:${n/5*100}%">★★★★★</i></span>`:'';
 const progress=b=>b.pmode==='pages'&&b.pages?pct(b.pg,b.pages):b.pmode==='pct'?Number(b.pct||0):null;
@@ -166,7 +167,14 @@ function vReading(){
   const g=D.goals.find(x=>x.kind==='number'&&x.auto&&x.per===Y);
   const n=g?gval(g):0;
   const F=U.filter;
-  const lib=D.books.filter(b=>(F==='all'||b.st===F)&&(!U.shelf||b.sh.includes(U.shelf)));
+  const R=U.rf,q=U.rq.trim().toLowerCase();
+  const lib=D.books.filter(b=>(F==='all'||b.st===F)&&(!U.shelf||b.sh.includes(U.shelf))&&(!R.year||(R.year==='none'?!b.end:(b.end||'').startsWith(R.year)))
+    &&(!R.tag||(b.tags||[]).includes(R.tag))&&(!R.rate||(R.rate==='none'?!avg(b):avg(b)>=+R.rate))&&(!R.fmt||b.fmt===R.fmt)&&(!q||(b.t+' '+b.a).toLowerCase().includes(q)))
+    .sort(SORTS[R.sort||'recent'][1]);
+  const years=[...new Set(D.books.map(b=>(b.end||'').slice(0,4)).filter(Boolean))].sort().reverse();
+  const tags=[...new Set(D.books.flatMap(b=>b.tags||[]))].sort();
+  const sel=(k,l,opts)=>`<select class="pselect" data-rf="${k}" aria-label="${l}"><option value="">${l}</option>${opts.map(([v,t])=>`<option value="${esc(v)}" ${R[k]===v?'selected':''}>${esc(t)}</option>`).join('')}</select>`;
+  const any=R.year||R.tag||R.rate||R.fmt||q||U.shelf||F!=='all';
   const fv=D.favs[YM]||{};
   const pastM=Object.keys(D.favs).filter(k=>k<YM).sort().reverse();
   const opts=D.books.filter(b=>b.st==='read'||b.st==='reading');
@@ -181,9 +189,16 @@ function vReading(){
     <div class="fav"><span class="label">Line of the month</span><input class="inl" data-fav="line" value="${esc(fv.line||'')}" placeholder="A line you keep thinking about"></div>
    </div>
    ${pastM.length?`<div class="past">${pastM.map(k=>{const f=D.favs[k],b=byId(D.books,f.book);return `<span class="label"><b style="color:var(--ink);font-weight:500">${monthName(k)}:</b> ${[b?esc(b.t):'',f.character?esc(f.character):''].filter(Boolean).join(' · ')}</span>`}).join('')}</div>`:''}</section>
-  <section class="sec"><div class="sh"><h2>Shelves</h2><div class="acts"><span class="label">${lib.length} books</span><button class="link" data-new="import">Import from Goodreads</button></div></div>
+  <section class="sec"><div class="sh"><h2>Shelves</h2><div class="acts"><span class="label">${lib.length} book${lib.length===1?'':'s'}</span><button class="link" data-new="import">Import from Goodreads</button></div></div>
    <div class="tabs" role="group" aria-label="Status">${[['all','All'],...Object.entries(ST).map(([k,v])=>[k,v[0]])].map(([k,l])=>`<button data-filter="${k}" aria-pressed="${F===k}">${l}</button>`).join('')}</div>
-   <div class="tabs" role="group" aria-label="Shelf">${D.shelves.map(s=>`<button data-shelf="${esc(s)}" aria-pressed="${U.shelf===s}">${esc(s)}</button>`).join('')}<button class="dash" data-new="shelf">+ shelf</button></div>
+   <div class="tabs" role="group" aria-label="Shelf">${D.shelves.map(s=>`<button data-shelf="${esc(s)}" aria-pressed="${U.shelf===s}">${esc(s)}</button>`).join('')}<button class="dash" data-new="shelf">+ shelf</button>${D.shelves.length?`<button class="link" data-new="shelves">edit shelves</button>`:''}</div>
+   <div class="rfilters"><input type="search" class="form-in" data-rq placeholder="Search title or author" value="${esc(U.rq)}" aria-label="Search">
+    ${sel('year','Any year',[...years.map(y=>[y,'Finished in '+y]),['none','No finish date']])}
+    ${tags.length?sel('tag','Any tag',tags.map(t=>[t,t])):''}
+    ${sel('rate','Any rating',[['5','5 stars'],['4','4 stars and up'],['3','3 stars and up'],['none','Not rated']])}
+    ${sel('fmt','Any format',[['Physical','Physical'],['Ebook','Ebook'],['Audiobook','Audiobook']])}
+    <select class="pselect" data-rf="sort" aria-label="Sort">${Object.entries(SORTS).map(([k,[l]])=>`<option value="${k}" ${(R.sort||'recent')===k?'selected':''}>Sort: ${l}</option>`).join('')}</select>
+    ${any?`<button class="link" data-rclear>clear filters</button>`:''}</div>
    <div class="grid">${lib.map(b=>`<button class="gbook" data-go="book/${b.id}">${cover(b)}<span class="bt">${esc(b.t)}</span><span class="ba">${esc(b.a)}</span>${b.st==='read'?starsOf(avg(b)):`<span class="st ${ST[b.st][1]}">${ST[b.st][0]}</span>`}</button>`).join('')||'<p class="empty">No books here yet.</p>'}</div></section>
   <section class="sec"><div class="sh"><h2>Copied out</h2><div class="acts"><button class="btn" data-new="quote">+ Quote</button></div></div>
    <div class="quotes">${D.quotes.map(q=>{const b=byId(D.books,q.book);return `<article><blockquote>“${esc(q.text)}”</blockquote><div class="qa">${b?`<button class="link" data-go="book/${b.id}">${esc(b.t)}</button>`:'<span class="label">Unknown book</span>'}${q.page?`<span class="label">p. ${esc(q.page)}</span>`:''}<button class="link" data-edit="quote|${q.id}">edit</button></div></article>`}).join('')||'<p class="empty">No quotes yet.</p>'}</div></section>`;
@@ -210,9 +225,9 @@ function pBook(b){
      <dt>Finished</dt><dd><input type="date" data-f="books|${b.id}|end" value="${esc(b.end)}" aria-label="Date finished"></dd>
      <dt>Times read</dt><dd><span class="stepper"><button data-times="${b.id}|-1" aria-label="One less">−</button><b style="min-width:26px;text-align:center">${b.times||0}</b><button data-times="${b.id}|1" aria-label="One more">+</button></span></dd>
      <dt>Pages</dt><dd>${inlN('books',b,'pages','Page count',false)}</dd>
-     <dt>Genre</dt><dd>${inl('books',b,'genre','Add a genre')}</dd>
+     <dt>Tags</dt><dd>${(b.tags||[]).map(t=>`<span class="chip tagchip">${esc(t)}<button class="x" data-untag="${b.id}|${esc(t)}" aria-label="Remove ${esc(t)}">×</button></span>`).join('')}<form class="tagadd" data-form="tag|${b.id}"><input name="t" list="taglist" placeholder="+ tag" aria-label="Add a tag"></form><datalist id="taglist">${[...new Set(D.books.flatMap(x=>x.tags||[]))].map(t=>`<option value="${esc(t)}">`).join('')}</datalist></dd>
      <dt>Format</dt><dd><select data-f="books|${b.id}|fmt" aria-label="Format">${['Physical','Ebook','Audiobook'].map(o=>`<option ${b.fmt===o?'selected':''}>${o}</option>`).join('')}</select></dd>
-     <dt>Shelves</dt><dd>${D.shelves.map(s=>`<button class="chip" style="border:0;${b.sh.includes(s)?'background:#fff;color:#1D1C1A':''}" data-bsh="${b.id}|${esc(s)}" aria-pressed="${b.sh.includes(s)}">${esc(s)}</button>`).join('')}</dd>
+     <dt>Shelves</dt><dd>${D.shelves.map(s=>`<button class="chip" style="border:0;${b.sh.includes(s)?'background:#fff;color:#1D1C1A':''}" data-bsh="${b.id}|${esc(s)}" aria-pressed="${b.sh.includes(s)}">${esc(s)}</button>`).join('')}<button class="chip" style="border:0" data-new="shelf|${b.id}">+ shelf</button></dd>
     </dl>
     <div class="box"><h3>Your grades</h3>
      <div class="grades">${GRADES.map(k=>{const v=b.grades[k]||0;return `<b>${k}</b><span class="pick5">${[1,2,3,4,5].map(n=>`<button aria-label="${k} ${n} stars" data-grade="${b.id}|${k}|${n}"><i style="width:${Math.max(0,Math.min(1,v-n+1))*100}%">★</i>★</button>`).join('')}<span class="gv">${v?qfmt(v):''}</span></span>`}).join('')}</div>
@@ -396,7 +411,7 @@ function importGoodreads(txt,which){
     const shelves=g(r,'Bookshelves').split(',').map(x=>x.trim().toLowerCase()).filter(x=>x&&!EXCL[x]&&x!==sh);
     shelves.forEach(x=>{if(!D.shelves.includes(x))D.shelves.push(x)});
     const b={id:id(),t,a,st,fmt:/kindle|ebook|nook/i.test(bind)?'Ebook':/audio/i.test(bind)?'Audiobook':'Physical',sh:shelves,times:+g(r,'Read Count')||(st==='read'?1:0),
-      grades:rating?{Enjoyment:rating}:{},review:g(r,'My Review').replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,''),notes:g(r,'Private Notes'),genre:'',
+      grades:rating?{Enjoyment:rating}:{},review:g(r,'My Review').replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,''),notes:g(r,'Private Notes'),tags:[],
       pages:+g(r,'Number of Pages')||'',pmode:'pages',pg:'',pct:'',start:'',end:st==='read'?end:'',
       cover:isbn?`https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg?default=false`:''};
     D.books.push(b);added++;if(!isbn)noIsbn.push(b);
@@ -425,6 +440,7 @@ function pop(kind,obj,isNew){
   if(kind==='cover'){title='Cover image';body=F.text('cover','Image link',obj.cover==='none'?'':obj.cover,'https://…')+'<p class="hint">Right-click a cover image anywhere online, copy the image address, and paste it here.</p>'}
   if(kind==='quote'){title=isNew?'Add a quote':'Quote';body=F.area('text','Quote',obj.text)+two(F.sel('book','Book',obj.book,D.books.map(b=>[b.id,b.t])),F.text('page','Page',obj.page))}
   if(kind==='shelf'){title='New shelf';body=F.text('name','Shelf name','','cozy, rereads, summer…')}
+  if(kind==='shelves'){title='Shelves';body=D.shelves.map((x,i)=>`<div class="shrow"><input name="s${i}" value="${esc(x)}" aria-label="Shelf name"><label class="chk"><input type="checkbox" name="del" value="${i}"> delete</label></div>`).join('')+'<p class="hint">Deleting a shelf keeps its books. They just leave that shelf.</p>'}
   if(kind==='task'){const st=obj.steps||[];title='Task';body=F.text('t','What',obj.t)+two(F.sel('when','When',obj.when,[['now','Now'],['soon','Soon'],['later','Later']]),F.text('cat','Category (optional)',obj.cat,'home, school, work…'))+F.area('note','Note (optional)',obj.note)
     +`<div class="f"><span>Small steps (optional)</span><div class="msteps">${st.map((s,i)=>`<label><input type="checkbox" name="sd" value="${i}" ${s.done?'checked':''} aria-label="Step done"><input type="text" name="s${i}" value="${esc(s.t)}" aria-label="Step"></label>`).join('')}<label><span style="width:13px"></span><input type="text" name="snew" placeholder="Add a step"></label></div></div>`
     +F.date('due','Soft "by" date (optional)',obj.due)}
@@ -444,8 +460,11 @@ const COLL={book:'books',quote:'quotes',project:'projects',note:'notes',task:'ta
 function readForm(f){const o={};const fd=new FormData(f);for(const [k,v] of fd.entries()){if(o[k]!==undefined){o[k]=[].concat(o[k],v)}else o[k]=v}return o}
 function applyPop(f){
   const {kind,id:oid,isNew}=U.pop;const v=readForm(f);const T=s=>(s||'').trim();
-  if(kind==='shelf'){const n=T(v.name).toLowerCase();if(n&&!D.shelves.includes(n))D.shelves.push(n);return close()}
-  if(kind==='book'){if(!T(v.a)&&!T(v.t))return;const ol=U.pop.ol&&U.pop.ol.title===T(v.t)?U.pop.ol:null;const b={id:id(),t:T(v.t)||'Untitled',a:T(v.a),st:v.st,fmt:'Physical',sh:[],own:'Own it',times:0,grades:{},review:'',notes:'',genre:'',pages:ol&&ol.pages||'',pmode:'pages',pg:'',pct:'',start:v.st==='reading'?TODAY:'',end:'',cover:ol&&ol.cover||''};D.books.push(b);close(false);toast('Added');if(!b.cover)findCover(b).then(ok=>{if(ok)render()});return go('book/'+b.id)}
+  if(kind==='shelf'){const n=T(v.name).toLowerCase();if(n&&!D.shelves.includes(n))D.shelves.push(n);const b=byId(D.books,U.pop.obj.kind||'');if(n&&b&&!b.sh.includes(n))b.sh.push(n);return close()}
+  if(kind==='shelves'){const dels=[].concat(v.del||[]).map(Number),map={};const next=[];
+    D.shelves.forEach((x,i)=>{if(dels.includes(i)){map[x]=null;return}const n=T(v['s'+i]).toLowerCase()||x;map[x]=n;if(!next.includes(n))next.push(n)});
+    D.shelves=next;D.books.forEach(b=>{b.sh=[...new Set(b.sh.map(x=>x in map?map[x]:x).filter(Boolean))]});if(U.shelf&&!(U.shelf in map&&map[U.shelf]))U.shelf='';else if(U.shelf)U.shelf=map[U.shelf];toast('Shelves saved');return close()}
+  if(kind==='book'){if(!T(v.a)&&!T(v.t))return;const ol=U.pop.ol&&U.pop.ol.title===T(v.t)?U.pop.ol:null;const b={id:id(),t:T(v.t)||'Untitled',a:T(v.a),st:v.st,fmt:'Physical',sh:[],own:'Own it',times:0,grades:{},review:'',notes:'',tags:[],pages:ol&&ol.pages||'',pmode:'pages',pg:'',pct:'',start:v.st==='reading'?TODAY:'',end:'',cover:ol&&ol.cover||''};D.books.push(b);close(false);toast('Added');if(!b.cover)findCover(b).then(ok=>{if(ok)render()});return go('book/'+b.id)}
   if(kind==='doc'){const p=byId(D.projects,U.pop.proj);if(!p||!T(v.url))return;p.docs=p.docs||[];if(isNew)p.docs.push({id:id(),name:T(v.name)||'Document',url:T(v.url)});else Object.assign(byId(p.docs,oid)||{},{name:T(v.name)||'Document',url:T(v.url)});return close()}
   if(kind==='import'){const file=f.file.files[0];if(!file)return;file.text().then(txt=>{const r=importGoodreads(txt,v.which);close();toast(r.added?`Added ${r.added} book${r.added>1?'s':''}${r.skipped?`, skipped ${r.skipped} already here`:''}`:r.error||'No new books found in that file')}).catch(()=>toast('Couldn\'t read that file'));return}
   if(kind==='cover'){const b=byId(D.books,oid);if(b)b.cover=T(v.cover)||'none';return close()}
@@ -507,6 +526,8 @@ document.addEventListener('click',e=>{
   else if(d.rhb){D.rlog[TODAY]=D.rlog[TODAY]||{};D.rlog[TODAY][d.rhb]=!D.rlog[TODAY][d.rhb]}
   else if(d.filter){U.filter=d.filter}
   else if(d.shelf){U.shelf=U.shelf===d.shelf?'':d.shelf}
+  else if('rclear' in d){U.rf={};U.rq='';U.shelf='';U.filter='all'}
+  else if(d.untag){const [i,t]=d.untag.split('|');const b=byId(D.books,i);b.tags=(b.tags||[]).filter(x=>x!==t)}
   else if(d.bst){const [i,s]=d.bst.split('|');const b=byId(D.books,i);b.st=s;if(s==='reading'&&!b.start)b.start=TODAY;if(s==='read'){if(!b.end)b.end=TODAY;if(!b.times)b.times=1}}
   else if(d.finish){const b=byId(D.books,d.finish);b.st='read';b.end=b.end||TODAY;b.times=(b.times||0)+1;if(b.pmode==='pages'&&b.pages)b.pg=b.pages;if(b.pmode==='pct')b.pct=100;toast(`Finished ${b.t}. Grade it below if you like.`)}
   else if(d.pmode){const [i,m]=d.pmode.split('|');byId(D.books,i).pmode=m}
@@ -539,6 +560,7 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('change',e=>{
   const x=e.target,d=x.dataset;
+  if(d.rf){U.rf={...U.rf,[d.rf]:x.value};render();return}
   if(d.f){const [c,i,f]=d.f.split('|');const o=byId(D[c],i);if(!o)return;let v='num' in d?(x.value===''?'':Math.max(0,Number(x.value))):x.value;if(f==='t'&&typeof v==='string'&&!v.trim()){x.value=o.t;return}o[f]=v;save();if('rr' in d||x.tagName==='SELECT'||x.type==='date')setTimeout(render,0);return}
   if(d.fav){D.favs[YM]=D.favs[YM]||{};D.favs[YM][d.fav]=x.value;save();return}
   if(d.gstept){const [i,n]=d.gstept.split('|');const st=byId(D.goals,i).steps[+n];st.t=x.value;const c=st.child&&byId(D.goals,st.child);if(c)c.t=x.value;save();return}
@@ -556,7 +578,9 @@ document.addEventListener('change',e=>{
 });
 let olT;
 document.addEventListener('input',e=>{
-  const x=e.target;if(!('olq' in x.dataset))return;
+  const x=e.target;
+  if('rq' in x.dataset){U.rq=x.value;const c=x.selectionStart;render();const el=document.querySelector('[data-rq]');if(el){el.focus();try{el.setSelectionRange(c,c)}catch(_){}}return}
+  if(!('olq' in x.dataset))return;
   const box=x.form.querySelector('.olres'),q=x.value.trim();clearTimeout(olT);
   if(q.length<3){box.innerHTML='';return}
   olT=setTimeout(async()=>{
@@ -576,6 +600,7 @@ document.addEventListener('submit',e=>{
   if(k==='pop'){applyPop(f);return}
   if(k==='quote'){if(!T(v.text))return;D.quotes.push({id:id(),book:ref,text:T(v.text),page:T(v.page)});toast('Quote saved');}
   else if(k==='log'){const p=byId(D.projects,ref);const w=Number(v.w||0);if(!w&&!T(v.n))return;p.sessions=p.sessions||[];p.sessions.push({d:TODAY,type:v.type,w:v.type==='writing'?w:0,n:T(v.n)});toast(v.type==='writing'&&w?`Logged ${fmt(w)} words`:'Session logged')}
+  else if(k==='tag'){const b=byId(D.books,ref),t=T(v.t).toLowerCase();if(!t)return;b.tags=b.tags||[];if(!b.tags.includes(t))b.tags.push(t)}
   else if(k==='rhythm'){if(!T(v.t))return;D.rhythm.push({id:id(),t:T(v.t)})}
   else if(k==='task'){if(!T(v.t))return;D.tasks.push({id:id(),t:T(v.t),when:ref})}
   else if(k==='gstep'){if(!T(v.t))return;const g=byId(D.goals,ref);g.steps=g.steps||[];g.steps.push({t:T(v.t),done:false})}

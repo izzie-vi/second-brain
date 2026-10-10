@@ -397,3 +397,14 @@ html{-webkit-text-size-adjust:100%}
 .gen.gs .hz{position:absolute;left:0;right:0;top:42%;height:1.5cqw;opacity:.6}
 .gen.gs .arch{position:absolute;left:20%;right:20%;top:12%;height:40%;border-radius:999px 999px 0 0}
 .gen.gs .waves{position:absolute;left:-10%;right:-10%;top:16%;height:34%}
+
+/* reading filters, tags, shelf editing */
+.rfilters{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+.rfilters input[type=search]{width:min(260px,100%);padding:6px 10px}
+.rfilters select option{color:#1D1C1A}
+.tagchip{display:inline-flex;align-items:center;gap:2px;padding-right:2px}
+.tagchip .x{font-size:.9rem;padding:0 2px}
+.tagadd input{background:transparent;border:0;border-bottom:1px solid var(--line);width:6em;padding:1px 0;font-size:.85rem}
+.shrow{display:flex;gap:12px;align-items:center}
+.shrow input:not([type=checkbox]){flex:1;border:1px solid rgba(0,0,0,.18);background:#fff;border-radius:6px;padding:7px 10px;min-width:0}
+.rfilters input::placeholder{color:var(--mute);opacity:1}
