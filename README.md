@@ -1,11 +1,12 @@
 # izzie's notebook
 
-A personal second brain: Today, Reading, Writing, Days and Goals. It is a website that installs like an app on phone and computer, works offline, and syncs through a private Supabase account.
+A personal second brain: Today, Reading, Writing, Days, Goals and Journal. It is a website that installs like an app on phone and computer, works offline, and syncs through a private Supabase account.
 
 ## How it fits together
 
 - `app/` is the whole site. Plain HTML, CSS and JavaScript, no build step.
-  - `app.js`: the five rooms (ported from the approved mockup).
+  - `app.js`: the rooms Today, Reading, Writing, Days and Goals (ported from the approved mockup).
+  - `journal.js`: the Journal room, mood and headache on Today, the Monday plan and the monthly wrapped.
   - `sync.js`: saves to the device and syncs with Supabase. Edits made on two devices at once are merged item by item.
   - `boot.js`: sign-in and start-up.
   - `config.js`: the Supabase project URL and anon key.
