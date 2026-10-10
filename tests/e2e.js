@@ -54,7 +54,7 @@ const settle=p=>p.waitForTimeout(1600);
   await P.click('[data-go="reading"]');await P.click('[data-new="book"]');await P.fill('.modal [name=t]','Piranesi');await P.fill('.modal [name=a]','Susanna Clarke');await P.click('.modal .btn.solid');
   await P.waitForSelector('.bpage img.real',{timeout:4000}).catch(()=>fail('background cover lookup failed'));
   await P.click('[data-bst$="|read"]');await P.waitForSelector('[data-bst$="|read"][aria-pressed="true"]');await P.click('[data-grade$="|Enjoyment|3"]');await P.waitForSelector('.avg b:text("3.0")');
-  await P.click('[data-go="reading"]');
+  await P.click('[data-go="reading"]');await P.waitForSelector('.gbook .stars',{timeout:5000}).catch(()=>{});
   const sw=await P.evaluate(()=>{const s=document.querySelector('.gbook .stars');return s&&[s.getBoundingClientRect().width,s.querySelector('i').getBoundingClientRect().width]});
   if(!sw||Math.abs(sw[1]/sw[0]-0.6)>0.05)fail('shelf stars do not match a 3.0 rating: '+sw);
   // Days
