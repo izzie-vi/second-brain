@@ -101,6 +101,45 @@ const settle=p=>p.waitForTimeout(1600);
   if(imp.includes('Old Book')||imp.includes('Wishlist Book'))fail('import ignored the year filter');
   if(imp.filter(t=>t==='Piranesi').length!==1)fail('import duplicated a book');
   const wide=await P.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1);if(wide)fail('phone page scrolls sideways');
+  // Journal: mood, headache and a few lines from Today, for today and yesterday
+  await P.click('nav [data-go="home"]');
+  await P.click('[data-mood$="|good"]');await P.click('[data-head$="|light"]');
+  await P.fill('.jline','Rain all day. Good book.');
+  await P.click('[data-jo="1"]');await P.click('[data-head$="|medium"]');await P.click('[data-jo="0"]');
+  const jd=await P.evaluate(()=>[D.days[TODAY],D.days[off(-1)]]);
+  if(!jd[0]||jd[0].mood!=='good'||jd[0].head!=='light'||!/Rain/.test(jd[0].text))fail('today check-in not saved: '+JSON.stringify(jd[0]));
+  if(!jd[1]||jd[1].head!=='medium')fail('yesterday headache not saved: '+JSON.stringify(jd[1]));
+  await P.click('[data-head$="|light"]');if(await P.evaluate(()=>D.days[TODAY].head))fail('tapping the headache again should clear it');
+  await shot(P,'12-today-checkin-phone');
+  await P.click('nav [data-go="journal"]');await P.waitForSelector('.cal');
+  if(!(await P.$('.cal button.sel .jdot')))fail('written day has no dot in the calendar');
+  if(await P.inputValue('.jtext')!=='Rain all day. Good book.')fail('journal panel does not show the entry');
+  await P.click('.jwhen [data-go^="entry/"]');await P.waitForSelector('.jfull');await P.fill('.jfull','Rain all day. Good book.\n\nMore here.');
+  await P.click('[data-go="journal"]');if(!(await P.inputValue('.jtext')).includes('More here'))fail('full entry not saved');
+  await P.waitForTimeout(400);await shot(P,'13-journal-phone');
+  // Monday plan: give a task a day, write a note
+  await P.evaluate(()=>{D.tasks.push({id:'wk1',t:'Outline chapter 4',when:'soon'});save()});
+  await P.evaluate(()=>go('week/'+TODAY));await P.waitForSelector('.lastwk');
+  const later=await P.evaluate(()=>{const k=[...document.querySelectorAll('[data-tday^="wk1|"]:not(:disabled)')].pop();k.click();return k.dataset.tday.split('|')[1]});
+  const wk=await P.evaluate(()=>{const t=D.tasks.find(x=>x.id==='wk1');return t.pick===TODAY?TODAY:t.day});
+  if(wk!==later)fail('task day not saved: '+wk+' vs '+later);
+  await P.fill('[data-wnote]','Dentist Thursday.');await P.click('[data-wdone]');await P.waitForSelector('.hello');
+  if(!(await P.textContent('#main')).includes('Dentist Thursday.'))fail('week note not on Today');
+  // wrap up last month and see the wrapped
+  const pm=await P.evaluate(()=>{const pm=ymOff(-1),d=pm+'-12';D.books.push({id:'wb1',t:'The Last Olympian',a:'Rick Riordan',st:'read',end:d,pages:381,grades:{Enjoyment:4},sh:[],tags:[],fmt:'Physical'});
+    D.days[d]={mood:'great',head:'light',text:'The library smelled like rain. I stayed until closing.'};D.days[pm+'-13']={mood:'low'};D.tlog[d]=3;save();return pm});
+  await P.evaluate(pm=>go('wrap/'+pm),pm);await P.waitForSelector('.wform');
+  await P.fill('[data-wq$="|song"]','Seven');await P.press('[data-wq$="|song"]','Tab');await P.fill('[data-wq$="|moment"]','The library until closing');await P.press('[data-wq$="|moment"]','Tab');
+  await P.setInputFiles('[data-wpic]',path.join(ROOT,'icons/icon-192.png'));await P.waitForSelector('.wform img.wpic');
+  await P.click('[data-wmake]');await P.waitForSelector('.wtitle');
+  const wt=await P.textContent('#main');
+  for(const w of ['The Last Olympian','Seven','The library until closing','headache day','tasks done'])if(!wt.includes(w))fail('wrapped missing '+w);
+  if(!(await P.$('.band img.wpic')))fail('wrapped missing the photo');
+  if(await P.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1))fail('wrapped scrolls sideways on the phone');
+  await P.waitForTimeout(500);await shot(P,'14-wrapped-phone');
+  await P.setViewportSize({width:1280,height:900});await P.evaluate(()=>go('week/'+TODAY));await P.waitForTimeout(500);await shot(P,'15-week-wide');
+  await P.evaluate(()=>go('journal'));await P.waitForTimeout(500);await shot(P,'16-journal-wide');
+  await P.evaluate(pm=>go('wrapped/'+pm),pm);await P.waitForTimeout(500);await shot(P,'17-wrapped-wide');await P.setViewportSize({width:390,height:844});
 
   /* ---------- sync: computer + phone ---------- */
   const A=await device(browser,'computer',{sync:true});

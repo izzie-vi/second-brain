@@ -13,13 +13,14 @@ const SUBLVL={year:'quarter',quarter:'month'};
 const lvlOf=p=>p.length===4?'year':p.includes('Q')?'quarter':'month';
 const inPer=(d,p)=>{if(!d)return false;if(p.includes('Q'))return d.slice(0,4)===p.slice(0,4)&&Math.floor((+d.slice(5,7)-1)/3)+1===+p.slice(-1);return d.startsWith(p)};
 const GRADES=['Characters','Writing','Plot','Enjoyment'];
-function blank(){return {shelves:['favorites'],books:[],quotes:[],favs:{},projects:[],notes:[],tasks:[],dates:[],rhythm:[],rlog:{},goals:[]}}
+function blank(){return {shelves:['favorites'],books:[],quotes:[],favs:{},projects:[],notes:[],tasks:[],dates:[],rhythm:[],rlog:{},goals:[],days:{},weeks:{},wraps:{},tlog:{}}}
 /* fill in anything missing so older or partial data never breaks a page */
 function fix(d){const b=blank();d=d&&typeof d==='object'&&!Array.isArray(d)?d:{};for(const k in b)if(!d[k]||typeof d[k]!=='object'||Array.isArray(d[k])!==Array.isArray(b[k]))d[k]=b[k];
   d.books.forEach(x=>{x.sh=Array.isArray(x.sh)?x.sh:[];if(!Array.isArray(x.tags)){x.tags=(x.genre||'').split(',').map(t=>t.trim().toLowerCase()).filter(Boolean);delete x.genre}x.grades=x.grades&&typeof x.grades==='object'?x.grades:{}});d.projects.forEach(x=>{x.sessions=Array.isArray(x.sessions)?x.sessions:[];if(!Array.isArray(x.docs)){x.docs=x.file?[{id:'doc'+x.id,name:'Scrivener',url:x.file}]:[];delete x.file}});return d}
 let D=fix(Store.load());
 /* yesterday's unfinished picks quietly go back to their list */
-function newDay(){D.tasks.forEach(t=>{if(t.pick&&t.pick!==TODAY&&!t.done)t.pick=''})}
+/* tasks given a day in the Monday plan get picked that morning */
+function newDay(){D.tasks.forEach(t=>{if(t.pick&&t.pick!==TODAY&&!t.done)t.pick='';if(t.day&&t.day<=TODAY){if(t.day===TODAY&&!t.done)t.pick=TODAY;t.day=''}})}
 newDay();
 function save(){Store.save(D)}
 const U={rf:{},rq:'',gedit:'',filter:'all',shelf:'',nf:'all',glvl:'year',gper:{...CUR},pop:null,undo:null,doneOpen:false,qi:-1};
@@ -107,15 +108,20 @@ const inlW=(c,o,f,ph)=>`<textarea class="inl tname" rows="1" data-f="${c}|${o.id
 const inlN=(c,o,f,ph,rr=true)=>`<input class="inl num" type="number" inputmode="numeric" min="0" data-f="${c}|${o.id}|${f}" data-num ${rr?'data-rr':''} value="${esc(o[f]??'')}" aria-label="${esc(ph)}">`;
 
 /* ================= routing ================= */
-const ROOMS=[['home','Today','--c-home'],['reading','Reading','--c-read'],['writing','Writing','--c-write'],['days','Days','--c-days'],['goals','Goals','--c-goals']];
+const ROOMS=[['home','Today','--c-home'],['reading','Reading','--c-read'],['writing','Writing','--c-write'],['days','Days','--c-days'],['goals','Goals','--c-goals'],['journal','Journal','--c-journal']];
+const isDay=s=>/^\d{4}-\d\d-\d\d$/.test(s||''),isYM=s=>/^\d{4}-\d\d$/.test(s||'');
 function route(){
   const [a,b]=(location.hash.slice(1)||'home').split('/');
   if(a==='book'&&byId(D.books,b))return {room:'reading',view:()=>pBook(byId(D.books,b))};
   if(a==='project'&&byId(D.projects,b))return {room:'writing',view:()=>pProject(byId(D.projects,b))};
   if(a==='card'&&byId(D.notes,b))return {room:'writing',view:()=>pCard(byId(D.notes,b))};
   if(a==='goal'&&byId(D.goals,b))return {room:'goals',view:()=>pGoal(byId(D.goals,b))};
+  if(a==='entry'&&isDay(b)&&b<=TODAY)return {room:'journal',view:()=>pEntry(b)};
+  if(a==='week'&&isDay(b))return {room:'journal',view:()=>pWeek(monOf(b))};
+  if(a==='wrap'&&isYM(b)&&b<YM)return {room:'journal',view:()=>pWrapQ(b)};
+  if(a==='wrapped'&&(isYM(b)&&b<YM||/^\d{4}$/.test(b||'')&&b<=Y))return {room:'wrapped',view:()=>pWrapped(b)};
   const r=ROOMS.find(x=>x[0]===a)?a:'home';
-  return {room:r,view:{home:vHome,reading:vReading,writing:vWriting,days:vDays,goals:vGoals}[r]};
+  return {room:r,view:{home:vHome,reading:vReading,writing:vWriting,days:vDays,goals:vGoals,journal:vJournal}[r]};
 }
 function go(h){if((location.hash.slice(1)||'home')===h)render();else location.hash=h}
 function head(title){return `<section class="head"><h1>${title}</h1></section>`}
@@ -144,6 +150,8 @@ function vHome(){
   const doneN=D.rhythm.filter(r=>log[r.id]).length;
   const pool=quotePool();if(U.qi<0||U.qi>=pool.length)U.qi=Math.floor(Math.random()*pool.length);
   const q=pool[U.qi];
+  /* journal tiles; if they leave a half row, the desk tile fills it */
+  const jt=homeJournal(),odd=jt.filter(x=>x.includes(' w3"')).length%2;
   const sub=[picks.length?`${left} of ${picks.length} picked thing${picks.length>1?'s':''} left`:'nothing picked for today',upcoming[0]?`${upcoming[0].t.toLowerCase()} on ${nice(upcoming[0].date)}`:''].filter(Boolean).join(', and ');
   return `<section class="hello"><div><p class="label" style="font-size:.85rem">${hi}, izzie</p><h1>${now.toLocaleDateString('en-US',{weekday:'long'})}, <em>${now.toLocaleDateString('en-US',{month:'long',day:'numeric'})}</em></h1></div></section>
   ${q?`<section class="qcard"><p class="kind">${q.kind}</p><blockquote>“${esc(q.text)}”</blockquote><p class="src">${q.book?`<button class="link" style="color:inherit;font-size:inherit" data-go="book/${q.book}">${esc(q.src)}</button>`:esc(q.src)}</p><button class="again" data-shuffle>another one</button></section>`:''}
@@ -156,9 +164,10 @@ function vHome(){
     </div></section>
    <section class="tile w2" style="background:#fff;border:1px solid var(--line)"><div class="th"><h2>Coming up</h2></div>
     ${upcoming.slice(0,3).map(d=>{const p=parse(d.date);return `<button class="minidate" data-go="days"><b>${p.d}<small>${MONTHS[p.m-1].slice(0,3)}</small></b><span><span style="display:block">${esc(d.t)}</span><span class="label">${esc(d.tag||'')}${d.time?' · '+esc(d.time):''}</span></span></button>`}).join('')||'<p class="empty">Nothing fixed ahead.</p>'}</section>
+   ${jt.join('')}
    <section class="tile t-read w3"><div class="th"><h2>Reading now</h2><button class="link" data-go="reading">library</button></div>
     ${reading.map(b=>{const pr=progress(b);return `<button class="mini" data-go="book/${b.id}"><span>${cover(b)}</span><span><span class="tt">${esc(b.t)}</span><span class="label">${progTxt(b)}</span>${pr!==null?`<span class="bar" style="display:block;margin-top:6px"><i style="width:${pr}%"></i></span>`:''}</span></button>`}).join('')||'<p class="empty">Nothing open right now.</p>'}</section>
-   <section class="tile t-write w3"><div class="th"><h2>On the desk</h2><button class="link" data-go="writing">all projects</button></div>
+   <section class="tile t-write ${odd?'w6':'w3'}"><div class="th"><h2>On the desk</h2><button class="link" data-go="writing">all projects</button></div>
     ${pins.map(p=>`<button class="mini" data-go="project/${p.id}"><span>${gen(p)}</span><span><span class="tt">${esc(p.t)}</span><span class="chiprow">${stageChips(p)}</span><span class="label" style="display:block;margin-top:4px">${esc(p.at||'')}</span></span></button>`).join('')||'<p class="empty">Nothing pinned. Pin a project in Writing.</p>'}</section>
   </div>`;
 }
@@ -314,7 +323,7 @@ function vDays(){
   </div>
   <section class="sec"><div class="sh"><h2>Everything else</h2></div>
    <div class="cols">${cols.map(([k,l],ci)=>{const ts=D.tasks.filter(t=>t.when===k&&!t.done);return `<div class="col"><h3>${l}</h3>
-    ${ts.map(t=>{const st=t.steps||[],meta=[t.cat,st.length?`${st.filter(x=>x.done).length}/${st.length}`:''].filter(Boolean).join(' · ');return `<div class="task3"><input type="checkbox" class="tick" data-done="${t.id}" aria-label="Done: ${esc(t.t)}">${inlW('tasks',t,'t','Task')}
+    ${ts.map(t=>{const st=t.steps||[],meta=[t.day?wdShort(t.day)+' '+nice(t.day):'',t.cat,st.length?`${st.filter(x=>x.done).length}/${st.length}`:''].filter(Boolean).join(' · ');return `<div class="task3"><input type="checkbox" class="tick" data-done="${t.id}" aria-label="Done: ${esc(t.t)}">${inlW('tasks',t,'t','Task')}
      <div class="tline"><span class="tmeta">${esc(meta)}</span><span class="tacts">${ci>0?`<button class="ib" data-mv="${t.id}|-1" aria-label="Move to ${cols[ci-1][1]}" title="Move to ${cols[ci-1][1]}">←</button>`:''}${ci<2?`<button class="ib" data-mv="${t.id}|1" aria-label="Move to ${cols[ci+1][1]}" title="Move to ${cols[ci+1][1]}">→</button>`:''}<button class="ib ${picked(t)?'on':''}" data-pick="${t.id}" aria-label="Pick for today" title="Pick for today">☀</button><button class="ib" data-edit="task|${t.id}" aria-label="More" title="Notes, steps, category">⋯</button></span></div></div>`}).join('')}
     <form class="addline" data-form="task|${k}"><input name="t" placeholder="+ Add" aria-label="New task in ${l}"></form></div>`}).join('')}</div>
    ${done.length?`<div style="margin-top:10px"><button class="link" data-doneopen>${U.doneOpen?'Hide':'Show'} ${done.length} done</button>${U.doneOpen?`<div>${done.map(t=>`<div class="task2 done"><input type="checkbox" class="tick" checked data-undone="${t.id}" aria-label="Not done: ${esc(t.t)}"><span class="txt">${esc(t.t)}</span><span class="label">${nice(t.done)}</span></div>`).join('')}<button class="link" data-cleardone style="margin-top:8px">Clear done</button></div>`:''}</div>`:''}</section>`;
@@ -473,7 +482,7 @@ function applyPop(f){
   if(kind==='project'){if(!T(v.t))return;const p={id:id(),t:T(v.t),k:T(v.k),pin:false,phase:'plotting',ch:'',at:U.pop.seed||'',notes:'',docs:T(v.url)?[{id:id(),name:T(v.name)||'Scrivener',url:T(v.url)}]:[],plot:'',words:'',opened:TODAY,sessions:[]};D.projects.push(p);if(U.pop.idea){const i=byId(D.notes,U.pop.idea);if(i)i.proj=p.id}close(false);toast('Project started');return go('project/'+p.id)}
   if(kind==='goal'){if(!T(v.t))return;const o=U.pop.obj,g={id:id(),t:T(v.t),per:o.per,parent:o.parent||'',kind:v.kind,target:Number(v.target||0),unit:T(v.unit),auto:!!o.auto&&v.kind==='number',v:0,steps:[],done:false};D.goals.push(g);close(false);toast('Goal added');return go('goal/'+g.id)}
   const coll=D[COLL[kind]];let o=isNew?{id:id()}:byId(coll,oid);
-  if(kind==='quote'){if(!T(v.text))return;Object.assign(o,{text:T(v.text),book:v.book,page:v.page})}
+  if(kind==='quote'){if(!T(v.text))return;Object.assign(o,{text:T(v.text),book:v.book,page:v.page});if(isNew)o.d=TODAY}
   if(kind==='task'){if(!T(v.t))return;const steps=(o.steps||[]).map((s,i)=>({t:T(v['s'+i]),done:[].concat(v.sd||[]).includes(String(i))})).filter(s=>s.t);if(T(v.snew))steps.push({t:T(v.snew),done:false});Object.assign(o,{t:T(v.t),when:v.when,cat:T(v.cat),note:T(v.note),due:v.due,steps})}
   if(kind==='date'){if(!T(v.t)||!v.date)return;Object.assign(o,{t:T(v.t),date:v.date,time:v.time,tag:v.tag})}
   if(isNew)coll.push(o);
@@ -502,7 +511,8 @@ function render(){
   if(R.room==='writing'&&location.hash.startsWith('#project/')){const p=byId(D.projects,location.hash.split('/')[1]);if(p&&p.opened!==TODAY)p.opened=TODAY}
   save();
   document.body.dataset.room=R.room;
-  document.getElementById('nav').innerHTML=ROOMS.map(([k,l,c])=>`<button data-go="${k}" ${R.room===k?'aria-current="page"':''}><i style="background:var(${c})"></i>${l}</button>`).join('');
+  const navR=R.room==='wrapped'?'journal':R.room;
+  document.getElementById('nav').innerHTML=ROOMS.map(([k,l,c])=>`<button data-go="${k}" ${navR===k?'aria-current="page"':''}><i style="background:var(${c})"></i>${l}</button>`).join('');
   document.getElementById('main').innerHTML=R.view();
   if(keep){const el=document.querySelector(`[data-f="${keep}"],[data-fav="${keep}"],[data-gstept="${keep}"]`);if(el){el.focus();try{el.setSelectionRange(ks,ks)}catch(e){}}}
   showStatus();
@@ -538,7 +548,7 @@ document.addEventListener('click',e=>{
   else if(d.bsh){const [i,s]=d.bsh.split('|');const b=byId(D.books,i);b.sh=b.sh.includes(s)?b.sh.filter(x=>x!==s):[...b.sh,s]}
   else if(d.grade){const [i,k,n]=d.grade.split('|');const b=byId(D.books,i),cur=b.grades[k]||0,N=+n;b.grades[k]=cur>N-1&&cur<=N?(cur-.25<=N-1?0:cur-.25):N}
   else if(d.pin){const p=byId(D.projects,d.pin);p.pin=!p.pin;toast(p.pin?'Pinned':'Unpinned')}
-  else if(d.phase){const [i,ph]=d.phase.split('|');byId(D.projects,i).phase=ph}
+  else if(d.phase){const [i,ph]=d.phase.split('|'),p=byId(D.projects,i);if(p.phase!==ph){p.phase=ph;p.moves=[...(p.moves||[]),{id:id(),d:TODAY,to:ph}]}}
   else if(d.mv){const [i,dir]=d.mv.split('|');const o=['now','soon','later'];const tk=byId(D.tasks,i);tk.when=o[o.indexOf(tk.when)+Number(dir)]}
   else if(d.pick){const tk=byId(D.tasks,d.pick);tk.pick=picked(tk)?'':TODAY}
   else if('doneopen' in d){U.doneOpen=!U.doneOpen}
@@ -575,8 +585,8 @@ document.addEventListener('change',e=>{
   if(d.gauto){byId(D.goals,d.gauto).auto=x.checked;render();return}
   if(d.gdone){byId(D.goals,d.gdone).done=x.checked;render();return}
   if(d.gstep){const [i,n]=d.gstep.split('|');byId(D.goals,i).steps[+n].done=x.checked;render();return}
-  if(d.done){const tk=byId(D.tasks,d.done);tk.done=TODAY;toast(`Done: ${tk.t}`);save();setTimeout(render,250);return}
-  if(d.undone){const tk=byId(D.tasks,d.undone);tk.done='';render();return}
+  if(d.done){const tk=byId(D.tasks,d.done);tk.done=TODAY;D.tlog[TODAY]=(+D.tlog[TODAY]||0)+1;toast(`Done: ${tk.t}`);save();setTimeout(render,250);return}
+  if(d.undone){const tk=byId(D.tasks,d.undone);if(D.tlog[tk.done])D.tlog[tk.done]=Math.max(0,D.tlog[tk.done]-1);tk.done='';render();return}
   if(d.rh){D.rlog[TODAY]=D.rlog[TODAY]||{};D.rlog[TODAY][d.rh]=x.checked;render();return}
 });
 let olT;
@@ -601,7 +611,7 @@ document.addEventListener('keydown',e=>{
 document.addEventListener('submit',e=>{
   e.preventDefault();const f=e.target,[k,ref]=(f.dataset.form||'').split('|');const v=readForm(f);const T=s=>(s||'').trim();
   if(k==='pop'){applyPop(f);return}
-  if(k==='quote'){if(!T(v.text))return;{const qid=id();D.quotes.push({id:qid,book:ref,text:T(v.text),page:T(v.page)});U.q3=[qid,...(U.q3||[])].slice(0,3)}toast('Quote saved');}
+  if(k==='quote'){if(!T(v.text))return;{const qid=id();D.quotes.push({id:qid,book:ref,text:T(v.text),page:T(v.page),d:TODAY});U.q3=[qid,...(U.q3||[])].slice(0,3)}toast('Quote saved');}
   else if(k==='log'){const p=byId(D.projects,ref);const w=Number(v.w||0);if(!w&&!T(v.n))return;p.sessions=p.sessions||[];p.sessions.push({d:TODAY,type:v.type,w:v.type==='writing'?w:0,n:T(v.n)});toast(v.type==='writing'&&w?`Logged ${fmt(w)} words`:'Session logged')}
   else if(k==='tag'){const b=byId(D.books,ref),t=T(v.t).toLowerCase();if(!t)return;b.tags=b.tags||[];if(!b.tags.includes(t))b.tags.push(t)}
   else if(k==='rhythm'){if(!T(v.t))return;D.rhythm.push({id:id(),t:T(v.t)})}
