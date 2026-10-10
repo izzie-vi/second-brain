@@ -36,14 +36,17 @@ const monthName=ym=>MONTHS[Number(ym.slice(5,7))-1];
 const ago=s=>{if(!s)return'never';const n=Math.round((new Date(TODAY)-new Date(s))/DAY);return n<=0?'today':n===1?'yesterday':n<14?n+' days ago':n<60?Math.round(n/7)+' weeks ago':Math.round(n/30)+' months ago'};
 const ST={want:['To read','s-want'],reading:['Reading','s-reading'],paused:['Paused','s-paused'],read:['Read','s-read'],dnf:['Did not finish','s-dnf']};
 const PHASES={plotting:'Plotting',writing:'Writing',editing:'Editing',revising:'Revising',done:'Finished'};
-const PAL=[['#E9DFC8','#3E6B4E','#1F2A22'],['#1E2A3A','#D98E3A','#F4E6CC'],['#2F4F6B','#EAD9B5','#EAD9B5'],['#F1E4D3','#A33B32','#2B1A16'],['#F4EFE6','#C4572F','#2A1E18'],['#F2C14E','#FFF5D6','#3A2E12'],['#1B1B1F','#C9A36A','#E7E3DA'],['#EDE6D6','#6A4C7A','#251C2B'],['#E86A4A','#FFE1C9','#FFF3E6'],['#DCE6DA','#2E5E4E','#1F2B26']];
-const GEN=[['#B9D7E8','#2F5D7C'],['#F3D7C2','#C46A4A'],['#D5E8C8','#6E8A5A'],['#E3D3EE','#8A6AA8'],['#F1E6B8','#B49A3A'],['#D9D9D9','#5B5B5B'],['#F6C9D3','#B04A68'],['#CDE7E3','#3F8A80']];
 const hash=s=>{let h=7;for(const c of s)h=(h*31+c.charCodeAt(0))>>>0;return h};
+/* made-up covers: picked from the title (and a "look" number you can change), so they stay the same on every device */
+const CPAL=[['#4E6278','#F2D49B','#FFFFFF'],['#E9C9C4','#7A3B3B','#2A1E1E'],['#3E7C62','#F3E6C8','#F7F2E6'],['#F2D49B','#4E6278','#2A2418'],['#B07F3E','#F6E9D2','#FFF8EC'],['#2F3A4A','#D98E6A','#F1E8DA'],['#D5E2D0','#3E6B4E','#1F2A22'],['#E3D3EE','#6A4C7A','#251C2B'],['#7A3B3B','#F1C9B0','#FBEFE6'],['#CDE7E3','#2F6F68','#16302D'],['#F3D7C2','#C46A4A','#3A2118'],['#1F2A22','#C9A36A','#EDE6D6']];
+const seedOf=x=>hash((x.t||'')+'|'+(x.look||0));
 function cover(b){
-  const h=hash(b.t+b.a),[bg,ac,ink]=PAL[h%PAL.length],k=['band','circ','type'][(h>>4)%3];
-  const inner=k==='band'?`<span class="bd" style="background:${ac}"></span><span class="ct" style="color:${bg}">${esc(b.t)}</span>`:k==='circ'?`<span class="orb" style="background:${ac}"></span><span class="ct">${esc(b.t)}</span>`:`<span class="ct">${esc(b.t)}</span>`;
+  const h=seedOf(b),[g,a,i]=CPAL[h%CPAL.length],T=esc(b.t),A=esc(b.a);
+  const inner=(h>>5)%2
+   ?`<div class="cv-pb" style="background:${g}"><span class="pbtop"><i></i></span><span class="pbmid"><span class="ct">${T}</span></span><span class="pbbot" style="color:${i}"><span class="ca">${A}</span></span></div>`
+   :`<div class="cv-mb" style="background:${Array.from({length:7},(_,k)=>`radial-gradient(ellipse ${30+k*6}% ${18+k*4}% at ${(h>>(k*3))%100}% ${(h>>(k*2+1))%100}%, ${k%2?a:g} 0 40%, transparent 41%)`).join(',')},repeating-radial-gradient(circle at ${h%100}% ${(h>>5)%100}%, ${g} 0 6cqw, ${a} 6cqw 9cqw, ${g} 9cqw 15cqw)"><span class="mblabel"><span class="ct">${T}</span><span class="ca">${A}</span></span></div>`;
   const img=b.cover&&b.cover!=='none'?`<img class="real" src="${esc(b.cover)}" alt="" loading="lazy" onerror="this.remove()">`:'';
-  return `<div class="cover ${k}" style="background:${bg};color:${ink}" aria-hidden="true">${inner}<span class="ca">${esc(b.a)}</span>${img}</div>`;
+  return `<div class="cover" aria-hidden="true">${inner}${img}</div>`;
 }
 /* real covers from Open Library (free, no account) */
 const OL='https://openlibrary.org/search.json';
@@ -60,9 +63,11 @@ async function findCover(b,force){
     b.cover=r.cover;if(!b.pages&&r.pages)b.pages=r.pages;save();return true}catch(e){return false}
 }
 function gen(p){
-  const h=hash(p.t),[a,b]=GEN[h%GEN.length],n=5+(h>>3)%4;
-  const st=Array.from({length:n},(_,k)=>`${k%2?b:a} ${k*100/n}% ${(k+1)*100/n}%`).join(',');
-  return `<div class="gen" style="background:linear-gradient(180deg,${st})" aria-hidden="true"><span class="bl" style="background:${h%2?a:b}"></span></div>`;
+  const h=seedOf(p),[g,a,i]=CPAL[h%CPAL.length],T=esc(p.t);
+  if((h>>4)%2){const L=esc((p.t||'?').replace(/^(the|a|an)\s+/i,'')[0]||'?');
+    return `<div class="gen gi" style="background:${g};color:${i}" aria-hidden="true"><span class="gl" style="color:${a}">${L}</span><span class="gt">${T}</span></div>`}
+  const k=(h>>7)%3,art=k===0?`<span class="sun" style="background:${a}"></span><span class="hz" style="background:${i}"></span>`:k===1?`<span class="arch" style="background:${a}"></span>`:`<span class="waves" style="background:repeating-radial-gradient(circle at 50% 120%, ${a} 0 5cqw, transparent 5cqw 10cqw)"></span>`;
+  return `<div class="gen gs" style="background:${g};color:${i}" aria-hidden="true">${art}<span class="gt">${T}</span></div>`;
 }
 /* grades go in quarter stars; the average is rounded to the nearest quarter too */
 const avg=b=>{const v=Object.values(b.grades||{}).filter(Boolean);return v.length?Math.round(v.reduce((m,x)=>m+x,0)/v.length*4)/4:0};
@@ -188,7 +193,7 @@ function pBook(b){
   const a=avg(b),qs=D.quotes.filter(q=>q.book===b.id),pr=progress(b);
   return `<button class="back" data-go="reading">← Reading</button>
   <div class="bpage">
-   <aside><div>${cover(b)}<div class="coverlinks"><button class="link" data-findcover="${b.id}">${b.cover&&b.cover!=='none'?'Other cover':'Find cover'}</button><button class="link" data-linkcover="${b.id}">Image link</button>${b.cover&&b.cover!=='none'?`<button class="link" data-nocover="${b.id}">No cover</button>`:''}</div></div>
+   <aside><div>${cover(b)}<div class="coverlinks"><button class="link" data-findcover="${b.id}">${b.cover&&b.cover!=='none'?'Other cover':'Find cover'}</button><button class="link" data-linkcover="${b.id}">Image link</button>${!b.cover||b.cover==='none'?`<button class="link" data-look="books|${b.id}">Other look</button>`:''}${b.cover&&b.cover!=='none'?`<button class="link" data-nocover="${b.id}">No cover</button>`:''}</div></div>
     <div style="display:flex;flex-direction:column;gap:10px">
      <div class="tabs" role="group" aria-label="Status" style="gap:5px">${Object.entries(ST).map(([k,v])=>`<button data-bst="${b.id}|${k}" aria-pressed="${b.st===k}">${v[0]}</button>`).join('')}</div>
      ${b.st!=='read'?`<button class="btn" style="border-color:#fff;align-self:flex-start" data-finish="${b.id}">Mark finished</button>`:''}
@@ -235,7 +240,7 @@ function vWriting(){
   <section class="sec"><div class="sh"><h2>Pinned</h2><div class="acts"><button class="btn" data-new="project">+ Project</button></div></div>
    <div class="pins">${pins.map(p=>`<button class="pin" data-go="project/${p.id}"><span>${gen(p)}</span><span style="display:flex;flex-direction:column;gap:6px;min-width:0"><h3>${esc(p.t)}</h3><span class="chiprow">${stageChips(p)}${p.words?`<span class="label">${fmt(p.words)} words</span>`:''}</span><p>${esc(p.at||'')}</p></span></button>`).join('')||'<p class="empty">Nothing pinned.</p>'}</div></section>
   <section class="sec"><div class="sh"><h2>Everything else</h2></div>
-   <div class="files">${rest.map(p=>{const [a,c]=GEN[hash(p.t)%GEN.length];return `<div class="file"><span class="ic" style="background:linear-gradient(180deg,${a} 0 50%,${c} 50%)"></span><button class="nm" data-go="project/${p.id}">${esc(p.t)}<small>${esc(p.k)}</small></button><span class="chiprow">${stageChips(p)}</span><span class="label op">${ago(p.opened)}</span><button class="pinbtn" data-pin="${p.id}" aria-label="Pin ${esc(p.t)}" title="Pin">☆</button></div>`}).join('')}</div></section>
+   <div class="files">${rest.map(p=>{const [a,c]=CPAL[seedOf(p)%CPAL.length];return `<div class="file"><span class="ic" style="background:linear-gradient(180deg,${a} 0 50%,${c} 50%)"></span><button class="nm" data-go="project/${p.id}">${esc(p.t)}<small>${esc(p.k)}</small></button><span class="chiprow">${stageChips(p)}</span><span class="label op">${ago(p.opened)}</span><button class="pinbtn" data-pin="${p.id}" aria-label="Pin ${esc(p.t)}" title="Pin">☆</button></div>`}).join('')}</div></section>
   <section class="sec"><div class="sh"><h2>Ideas</h2></div>
    <div class="chips" role="group" aria-label="Show">${[['all','All'],['loose','Loose'],...projs.map(p=>[p.id,p.t])].map(([k,l])=>`<button data-nf="${k}" aria-pressed="${NF===k}">${esc(l)}</button>`).join('')}</div>
    ${board(shown,NF!=='all'&&NF!=='loose'?'@'+NF:'')}</section>`;
@@ -252,7 +257,7 @@ function pProject(p){
   const cards=D.notes.filter(n=>n.proj===p.id&&!n.parent);
   const ses=[...(p.sessions||[])].sort((a,b)=>b.d.localeCompare(a.d));
   return `<button class="back" data-go="writing">← Writing</button>
-  <div class="ptop"><div>${gen(p)}</div><div style="min-width:0">${inlT('projects',p,'t','Title')}
+  <div class="ptop"><div>${gen(p)}<button class="link" style="margin-top:6px;font-size:.8rem" data-look="projects|${p.id}">Other look</button></div><div style="min-width:0">${inlT('projects',p,'t','Title')}
    <div class="pmeta">${inl('projects',p,'k','Kind','', 'style="width:7em"')}<button class="link" data-pin="${p.id}">${p.pin?'★ pinned':'☆ pin'}</button>${(p.docs||[]).map(x=>`<span class="doc"><button class="link" data-opendoc="${p.id}|${x.id}">${esc(x.name||'Document')} ↗</button><button class="ib" data-editdoc="${p.id}|${x.id}" aria-label="Edit ${esc(x.name)}" title="Edit link">✎</button></span>`).join('')}<button class="link" data-newdoc="${p.id}">+ document</button></div></div></div>
   <div class="ppage">
    <div style="display:flex;flex-direction:column;gap:22px;min-width:0">
@@ -391,7 +396,7 @@ function pop(kind,obj,isNew){
    <h2>${esc(title)}</h2>
    <form data-form="pop" style="display:flex;flex-direction:column;gap:12px">${body}
     <div class="bar2"><button class="btn solid">${isNew?'Add':'Save'}</button><button type="button" class="btn" data-close>Cancel</button>${canDel?`<button type="button" class="del" data-delpop>Delete</button>`:''}</div></form></div></div>`;
-  setTimeout(()=>document.querySelector('.modal input:not([type=checkbox]),.modal textarea')?.focus(),30);
+  document.querySelector('.modal input:not([type=checkbox]),.modal textarea')?.focus();
 }
 const COLL={book:'books',quote:'quotes',project:'projects',note:'notes',task:'tasks',date:'dates',rhythm:'rhythm',goal:'goals'};
 function readForm(f){const o={};const fd=new FormData(f);for(const [k,v] of fd.entries()){if(o[k]!==undefined){o[k]=[].concat(o[k],v)}else o[k]=v}return o}
@@ -482,6 +487,7 @@ document.addEventListener('click',e=>{
   else if('export' in d){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(D,null,1)],{type:'application/json'}));a.download=`second-brain-${TODAY}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);return}
   else if('signout' in d){if(t.dataset.armed){Store.signOut().then(()=>location.reload());return}t.dataset.armed='1';t.textContent='Tap again to sign out';setTimeout(()=>{if(t.isConnected){t.textContent='Sign out';delete t.dataset.armed}},4000);return}
   else if(d.findcover){const b=byId(D.books,d.findcover);t.textContent='Looking…';findCover(b,true).then(ok=>{if(!ok)toast('No cover found. You can paste an image link instead.');render()});return}
+  else if(d.look){const [c,i]=d.look.split('|');const o=byId(D[c],i);o.look=(o.look||0)+1}
   else if(d.nocover){const b=byId(D.books,d.nocover);b.cover='none';}
   else if(d.linkcover){pop('cover',byId(D.books,d.linkcover),false);return}
   else if(d.olpick!==undefined&&d.olpick!==''&&U.pop&&U.pop.res){const r=U.pop.res[+d.olpick];const f=t.closest('form');f.t.value=r.title;f.a.value=r.author;U.pop.ol=r;f.querySelectorAll('[data-olpick]').forEach(x=>x.setAttribute('aria-pressed',x===t));return}

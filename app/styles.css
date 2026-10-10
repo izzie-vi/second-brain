@@ -78,16 +78,7 @@ textarea.inl.big:hover{border-bottom-color:var(--line)}
 
 /* covers */
 .cover{position:relative;aspect-ratio:2/3;width:100%;border-radius:2px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.2),0 8px 18px -8px rgba(0,0,0,.45);display:flex;flex-direction:column;padding:10% 9%;container-type:inline-size}
-.cover .ct{font-family:var(--serif);font-weight:600;line-height:1.08;font-size:11cqw;position:relative}
-.cover .ca{font-weight:500;letter-spacing:.12em;text-transform:uppercase;font-size:5.5cqw;margin-top:auto;position:relative}
-.cover .bd{position:absolute;left:0;right:0;top:38%;height:26%}
-.cover.band .ct{position:absolute;left:8%;right:8%;top:38%;height:26%;display:flex;align-items:center;justify-content:center;text-align:center;overflow:hidden}
-.cover.band .ca{text-align:center}
-.cover .orb{position:absolute;width:66%;aspect-ratio:1;border-radius:50%;left:17%;top:30%}
-.cover.type .ct{font-family:var(--display);font-weight:400;font-size:20cqw;line-height:.92;margin-top:auto}
-.cover.type .ca{margin-top:10%}
-.gen{position:relative;width:100%;aspect-ratio:3/4;border-radius:4px;overflow:hidden}
-.gen .bl{position:absolute;inset:22% 16%;border-radius:50%;filter:blur(18px)}
+.gen{position:relative;width:100%;aspect-ratio:3/4;border-radius:4px;overflow:hidden;container-type:inline-size}
 
 /* today */
 .hello{padding-block:clamp(26px,5vw,48px) 6px;display:grid;grid-template-columns:1fr auto;gap:10px 24px;align-items:end}
@@ -388,3 +379,21 @@ html{-webkit-text-size-adjust:100%}
 .sg.sm{background:none;border:1px solid var(--line);padding:6px 10px;gap:4px;font-size:.9rem;margin-left:10px;width:calc(100% - 10px)}
 .sg.sm>span:first-child{font-weight:500;font-family:var(--sans)}
 .row.done .txt,.task2.done .txt{color:var(--mute);text-decoration:line-through}
+
+/* covers: vintage paperback (pb) and marbled (mb) for books; big initial (gi) and simple shapes (gs) for projects */
+.cover>div{position:absolute;inset:0}
+.cover .ct{font-family:var(--serif);font-weight:600;line-height:1.08;font-size:10.5cqw;overflow-wrap:anywhere}
+.cover .ca{font-family:var(--sans);font-weight:500;letter-spacing:.14em;text-transform:uppercase;font-size:5cqw}
+.cv-pb{display:grid;grid-template-rows:28% 1fr 28%}
+.cv-pb .pbtop{display:grid;place-items:center}
+.cv-pb .pbtop i{width:22cqw;height:22cqw;border-radius:50%;background:#FBF6EA;opacity:.9}
+.cv-pb .pbmid{background:#FBF6EA;color:#24201B;display:grid;place-items:center;padding:0 9%;text-align:center;overflow:hidden}
+.cv-pb .pbbot{display:grid;place-items:center;color:#FBF6EA;text-align:center;padding:0 6%}
+.cv-mb .mblabel{position:absolute;left:12%;right:12%;top:30%;background:#FBF6EA;color:#24201B;padding:8% 6%;text-align:center;display:flex;flex-direction:column;gap:6cqw;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.cv-mb .ca{color:#6B6257;font-size:4.6cqw}
+.gen .gt{position:absolute;left:10%;right:10%;bottom:8%;font-family:var(--serif);font-weight:600;line-height:1.08;font-size:10cqw;overflow-wrap:anywhere}
+.gen.gi .gl{position:absolute;left:10%;top:4%;font-family:var(--display);font-style:italic;font-size:78cqw;line-height:.95}
+.gen.gs .sun{position:absolute;left:22%;top:14%;width:56%;aspect-ratio:1;border-radius:50%}
+.gen.gs .hz{position:absolute;left:0;right:0;top:42%;height:1.5cqw;opacity:.6}
+.gen.gs .arch{position:absolute;left:20%;right:20%;top:12%;height:40%;border-radius:999px 999px 0 0}
+.gen.gs .waves{position:absolute;left:-10%;right:-10%;top:16%;height:34%}

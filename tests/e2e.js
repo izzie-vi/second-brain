@@ -53,7 +53,7 @@ const settle=p=>p.waitForTimeout(1600);
   // book typed by hand gets a cover looked up in the background
   await P.click('[data-go="reading"]');await P.click('[data-new="book"]');await P.fill('.modal [name=t]','Piranesi');await P.fill('.modal [name=a]','Susanna Clarke');await P.click('.modal .btn.solid');
   await P.waitForSelector('.bpage img.real',{timeout:4000}).catch(()=>fail('background cover lookup failed'));
-  await P.click('[data-bst$="|read"]');await P.click('[data-grade$="|Enjoyment|3"]');
+  await P.click('[data-bst$="|read"]');await P.waitForSelector('[data-bst$="|read"][aria-pressed="true"]');await P.click('[data-grade$="|Enjoyment|3"]');await P.waitForSelector('.avg b:text("3.0")');
   await P.click('[data-go="reading"]');
   const sw=await P.evaluate(()=>{const s=document.querySelector('.gbook .stars');return s&&[s.getBoundingClientRect().width,s.querySelector('i').getBoundingClientRect().width]});
   if(!sw||Math.abs(sw[1]/sw[0]-0.6)>0.05)fail('shelf stars do not match a 3.0 rating: '+sw);
@@ -68,7 +68,7 @@ const settle=p=>p.waitForTimeout(1600);
   await P.click('nav [data-go="writing"]');await P.click('[data-new="project"]');await P.fill('.modal [name=t]','The Lighthouse');await P.click('.modal .btn.solid');
   await P.waitForSelector('.ptop');await P.fill('form[data-form^="log|"] input[name=w]','800');await P.click('form[data-form^="log|"] .btn');
   await P.click('[data-newdoc]');await P.waitForSelector('.modal');await P.fill('.modal [name=name]','Scrivener');await P.fill('.modal [name=url]','x-scrivener-item:///Users/izzie/Lighthouse.scriv?id=1');await P.click('.modal .btn.solid');
-  if(!(await P.$('[data-opendoc]')))fail('document link not added');
+  if(!(await P.$('[data-opendoc]'))){fail('document link not added');await shot(P,'dbgdoc');console.log(await P.evaluate(()=>JSON.stringify(U.pop?{k:U.pop.kind,proj:U.pop.proj}:null)))}
   await P.click('[data-phase$="|writing"]');await P.fill('[data-f$="|plot"]','70');await P.press('[data-f$="|plot"]','Enter');
   await P.click('[data-go="writing"]');
   if(await P.$('.pins .pin'))fail('new project should start unpinned');
