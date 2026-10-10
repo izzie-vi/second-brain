@@ -93,6 +93,13 @@ const settle=p=>p.waitForTimeout(1600);
   for(const w of ['Return library books','East of Eden','The Lighthouse','Dentist'])if(!today.includes(w))fail('Today missing '+w);
   if(!(await P.$('[data-rhb][aria-pressed="true"]')))fail('rhythm tick not saved');
   await shot(P,'07-today-phone');
+  // Goodreads import: this year's reads + currently reading, skipping books already here
+  await P.click('nav [data-go="reading"]');await P.click('[data-new="import"]');await P.setInputFiles('.modal [name=file]',path.join(__dirname,'fixtures/goodreads.csv'));await P.click('.modal .btn.solid');
+  await P.waitForFunction(()=>/Added/.test(document.querySelector('#toast').textContent)).catch(()=>{});
+  const imp=await P.evaluate(()=>D.books.map(b=>b.t));
+  for(const t of ['The Hunger Games','Middlemarch'])if(!imp.includes(t))fail('import missed '+t);
+  if(imp.includes('Old Book')||imp.includes('Wishlist Book'))fail('import ignored the year filter');
+  if(imp.filter(t=>t==='Piranesi').length!==1)fail('import duplicated a book');
   const wide=await P.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1);if(wide)fail('phone page scrolls sideways');
 
   /* ---------- sync: computer + phone ---------- */

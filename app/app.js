@@ -181,7 +181,7 @@ function vReading(){
     <div class="fav"><span class="label">Line of the month</span><input class="inl" data-fav="line" value="${esc(fv.line||'')}" placeholder="A line you keep thinking about"></div>
    </div>
    ${pastM.length?`<div class="past">${pastM.map(k=>{const f=D.favs[k],b=byId(D.books,f.book);return `<span class="label"><b style="color:var(--ink);font-weight:500">${monthName(k)}:</b> ${[b?esc(b.t):'',f.character?esc(f.character):''].filter(Boolean).join(' · ')}</span>`}).join('')}</div>`:''}</section>
-  <section class="sec"><div class="sh"><h2>Shelves</h2><div class="acts"><span class="label">${lib.length} books</span></div></div>
+  <section class="sec"><div class="sh"><h2>Shelves</h2><div class="acts"><span class="label">${lib.length} books</span><button class="link" data-new="import">Import from Goodreads</button></div></div>
    <div class="tabs" role="group" aria-label="Status">${[['all','All'],...Object.entries(ST).map(([k,v])=>[k,v[0]])].map(([k,l])=>`<button data-filter="${k}" aria-pressed="${F===k}">${l}</button>`).join('')}</div>
    <div class="tabs" role="group" aria-label="Shelf">${D.shelves.map(s=>`<button data-shelf="${esc(s)}" aria-pressed="${U.shelf===s}">${esc(s)}</button>`).join('')}<button class="dash" data-new="shelf">+ shelf</button></div>
    <div class="grid">${lib.map(b=>`<button class="gbook" data-go="book/${b.id}">${cover(b)}<span class="bt">${esc(b.t)}</span><span class="ba">${esc(b.a)}</span>${b.st==='read'?starsOf(avg(b)):`<span class="st ${ST[b.st][1]}">${ST[b.st][0]}</span>`}</button>`).join('')||'<p class="empty">No books here yet.</p>'}</div></section>
@@ -365,6 +365,47 @@ function splitGoal(g,deep){
     if(deep&&lvlOf(sp)==='quarter')splitGoal(k,false)});
 }
 
+/* ================= Goodreads import ================= */
+function parseCSV(txt){
+  const rows=[];let row=[],cur='',q=false;
+  for(let i=0;i<txt.length;i++){const c=txt[i];
+    if(q){if(c==='"'){if(txt[i+1]==='"'){cur+='"';i++}else q=false}else cur+=c}
+    else if(c==='"')q=true;else if(c===','){row.push(cur);cur=''}
+    else if(c==='\n'||c==='\r'){if(c==='\r'&&txt[i+1]==='\n')i++;row.push(cur);rows.push(row);row=[];cur=''}
+    else cur+=c}
+  if(cur||row.length){row.push(cur);rows.push(row)}
+  return rows.filter(r=>r.some(x=>x.trim()));
+}
+function importGoodreads(txt,which){
+  const rows=parseCSV(txt.replace(/^\uFEFF/,''));if(rows.length<2)return {added:0,error:'That file looks empty'};
+  const H=rows[0].map(h=>h.trim()),col=n=>H.indexOf(n);
+  if(col('Title')<0||col('Exclusive Shelf')<0)return {added:0,error:'That doesn\'t look like a Goodreads export'};
+  const g=(r,n)=>{const i=col(n);return i<0?'':(r[i]||'').trim()};
+  const key=(t,a)=>(t+'|'+a).toLowerCase().replace(/[^a-z0-9|]/g,'');
+  const have=new Set(D.books.map(b=>key(b.t,b.a)));
+  const EXCL={read:'read','currently-reading':'reading','to-read':'want'};
+  let added=0,skipped=0;const noIsbn=[];
+  for(const r of rows.slice(1)){
+    const sh=g(r,'Exclusive Shelf'),st=EXCL[sh]||(/dnf|did-not-finish|abandon/i.test(sh)?'dnf':'want');
+    const end=g(r,'Date Read').replace(/\//g,'-');
+    if(which!=='all'&&!(st==='reading'||(st==='read'&&end.startsWith(Y))))continue;
+    const t=g(r,'Title').replace(/\s*\([^)]*#[^)]*\)\s*$/,''),a=g(r,'Author');if(!t)continue;
+    if(have.has(key(t,a))){skipped++;continue}have.add(key(t,a));
+    const isbn=(g(r,'ISBN13')||g(r,'ISBN')).replace(/[^0-9X]/gi,'');
+    const bind=g(r,'Binding'),rating=+g(r,'My Rating')||0;
+    const shelves=g(r,'Bookshelves').split(',').map(x=>x.trim().toLowerCase()).filter(x=>x&&!EXCL[x]&&x!==sh);
+    shelves.forEach(x=>{if(!D.shelves.includes(x))D.shelves.push(x)});
+    const b={id:id(),t,a,st,fmt:/kindle|ebook|nook/i.test(bind)?'Ebook':/audio/i.test(bind)?'Audiobook':'Physical',sh:shelves,times:+g(r,'Read Count')||(st==='read'?1:0),
+      grades:rating?{Enjoyment:rating}:{},review:g(r,'My Review').replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,''),notes:g(r,'Private Notes'),genre:'',
+      pages:+g(r,'Number of Pages')||'',pmode:'pages',pg:'',pct:'',start:'',end:st==='read'?end:'',
+      cover:isbn?`https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg?default=false`:''};
+    D.books.push(b);added++;if(!isbn)noIsbn.push(b);
+  }
+  /* look up covers for books without an ISBN, one at a time so Open Library isn't flooded */
+  (async()=>{for(const b of noIsbn){await findCover(b);await new Promise(r=>setTimeout(r,300))}if(noIsbn.length)render()})();
+  return {added,skipped};
+}
+
 /* ================= centered popups (small things) ================= */
 const F={
  text:(k,l,v,ph='')=>`<label class="f"><span>${l}</span><input name="${k}" value="${esc(v)}" placeholder="${esc(ph)}"></label>`,
@@ -380,6 +421,7 @@ function pop(kind,obj,isNew){
   if(kind==='book'){title='Add a book';body=`<label class="f"><span>Search</span><input name="q" type="search" placeholder="Title or author" data-olq autocomplete="off"></label><div class="olres" aria-live="polite"></div>`+two(F.text('t','Title',''),F.text('a','Author',''))+F.sel('st','Status','want',Object.entries(ST).map(([k,v])=>[k,v[0]]))}
   if(kind==='project'){title='New project';body=F.text('t','Title',obj.t||'')+F.text('k','Kind','Novel','Novel, short story, poetry…')+two(F.text('name','Document name (optional)','Scrivener'),F.text('url','Link (optional)','','Paste the link'))+DOCHINT}
   if(kind==='doc'){title=isNew?'Add a document':'Document';body=F.text('name','Name',obj.name,'Scrivener, Pages draft…')+F.text('url','Link',obj.url,'Paste the link')+DOCHINT}
+  if(kind==='import'){title='Import from Goodreads';body=`<label class="f"><span>Goodreads export file (.csv)</span><input type="file" name="file" accept=".csv,text/csv" required></label>`+F.sel('which','Which books','year',[['year',`Read in ${Y}, plus what you're reading now`],['all','Everything in the file']])+'<p class="hint">On Goodreads: My Books → Import and export → Export Library. Books you already have here are skipped.</p>'}
   if(kind==='cover'){title='Cover image';body=F.text('cover','Image link',obj.cover==='none'?'':obj.cover,'https://…')+'<p class="hint">Right-click a cover image anywhere online, copy the image address, and paste it here.</p>'}
   if(kind==='quote'){title=isNew?'Add a quote':'Quote';body=F.area('text','Quote',obj.text)+two(F.sel('book','Book',obj.book,D.books.map(b=>[b.id,b.t])),F.text('page','Page',obj.page))}
   if(kind==='shelf'){title='New shelf';body=F.text('name','Shelf name','','cozy, rereads, summer…')}
@@ -405,6 +447,7 @@ function applyPop(f){
   if(kind==='shelf'){const n=T(v.name).toLowerCase();if(n&&!D.shelves.includes(n))D.shelves.push(n);return close()}
   if(kind==='book'){if(!T(v.a)&&!T(v.t))return;const ol=U.pop.ol&&U.pop.ol.title===T(v.t)?U.pop.ol:null;const b={id:id(),t:T(v.t)||'Untitled',a:T(v.a),st:v.st,fmt:'Physical',sh:[],own:'Own it',times:0,grades:{},review:'',notes:'',genre:'',pages:ol&&ol.pages||'',pmode:'pages',pg:'',pct:'',start:v.st==='reading'?TODAY:'',end:'',cover:ol&&ol.cover||''};D.books.push(b);close(false);toast('Added');if(!b.cover)findCover(b).then(ok=>{if(ok)render()});return go('book/'+b.id)}
   if(kind==='doc'){const p=byId(D.projects,U.pop.proj);if(!p||!T(v.url))return;p.docs=p.docs||[];if(isNew)p.docs.push({id:id(),name:T(v.name)||'Document',url:T(v.url)});else Object.assign(byId(p.docs,oid)||{},{name:T(v.name)||'Document',url:T(v.url)});return close()}
+  if(kind==='import'){const file=f.file.files[0];if(!file)return;file.text().then(txt=>{const r=importGoodreads(txt,v.which);close();toast(r.added?`Added ${r.added} book${r.added>1?'s':''}${r.skipped?`, skipped ${r.skipped} already here`:''}`:r.error||'No new books found in that file')}).catch(()=>toast('Couldn\'t read that file'));return}
   if(kind==='cover'){const b=byId(D.books,oid);if(b)b.cover=T(v.cover)||'none';return close()}
   if(kind==='project'){if(!T(v.t))return;const p={id:id(),t:T(v.t),k:T(v.k),pin:false,phase:'plotting',ch:'',at:U.pop.seed||'',notes:'',docs:T(v.url)?[{id:id(),name:T(v.name)||'Scrivener',url:T(v.url)}]:[],plot:'',words:'',opened:TODAY,sessions:[]};D.projects.push(p);if(U.pop.idea){const i=byId(D.notes,U.pop.idea);if(i)i.proj=p.id}close(false);toast('Project started');return go('project/'+p.id)}
   if(kind==='goal'){if(!T(v.t))return;const o=U.pop.obj,g={id:id(),t:T(v.t),per:o.per,parent:o.parent||'',kind:v.kind,target:Number(v.target||0),unit:T(v.unit),auto:!!o.auto&&v.kind==='number',v:0,steps:[],done:false};D.goals.push(g);close(false);toast('Goal added');return go('goal/'+g.id)}
