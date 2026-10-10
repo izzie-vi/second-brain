@@ -130,6 +130,8 @@ const POEMS=[
  ['I exist as I am, that is enough','Walt Whitman'],
  ['The world is too much with us; late and soon','William Wordsworth']
 ];
+/* three random quotes, picked again each time Reading opens or on "other quotes" */
+function threeQuotes(){let ids=(U.q3||[]).filter(i=>byId(D.quotes,i));if(ids.length<Math.min(3,D.quotes.length)){const rest=D.quotes.map(q=>q.id).filter(i=>!ids.includes(i)).sort(()=>Math.random()-.5);ids=[...ids,...rest].slice(0,3)}U.q3=ids;return ids.map(i=>byId(D.quotes,i))}
 function quotePool(){return [...D.quotes.map(q=>{const b=byId(D.books,q.book);return {text:q.text,src:b?b.t:'',kind:'From your quotes',book:q.book}}),...POEMS.map(([text,src])=>({text,src,kind:'A little poem'}))]}
 function vHome(){
   const now=new Date(),hr=now.getHours();
@@ -144,7 +146,7 @@ function vHome(){
   const q=pool[U.qi];
   const sub=[picks.length?`${left} of ${picks.length} picked thing${picks.length>1?'s':''} left`:'nothing picked for today',upcoming[0]?`${upcoming[0].t.toLowerCase()} on ${nice(upcoming[0].date)}`:''].filter(Boolean).join(', and ');
   return `<section class="hello"><div><p class="label" style="font-size:.85rem">${hi}, izzie</p><h1>${now.toLocaleDateString('en-US',{weekday:'long'})}, <em>${now.toLocaleDateString('en-US',{month:'long',day:'numeric'})}</em></h1></div></section>
-  ${q?`<section class="qcard"><p class="kind">${q.kind}</p><blockquote>“${esc(q.text)}”</blockquote><p class="src">${q.book?`<button class="link" style="color:inherit;font-size:1rem" data-go="book/${q.book}">${esc(q.src)}</button>`:esc(q.src)}</p><button class="again" data-shuffle>another one</button></section>`:''}
+  ${q?`<section class="qcard"><p class="kind">${q.kind}</p><blockquote>“${esc(q.text)}”</blockquote><p class="src">${q.book?`<button class="link" style="color:inherit;font-size:inherit" data-go="book/${q.book}">${esc(q.src)}</button>`:esc(q.src)}</p><button class="again" data-shuffle>another one</button></section>`:''}
   <div class="tiles">
    <section class="tile t-days w4 wide"><div class="th"><h2>Your day</h2><button class="link" data-go="days">open Days</button></div>
     <div class="split">
@@ -200,8 +202,8 @@ function vReading(){
     <select class="pselect" data-rf="sort" aria-label="Sort">${Object.entries(SORTS).map(([k,[l]])=>`<option value="${k}" ${(R.sort||'recent')===k?'selected':''}>Sort: ${l}</option>`).join('')}</select>
     ${any?`<button class="link" data-rclear>clear filters</button>`:''}</div>
    <div class="grid">${lib.map(b=>`<button class="gbook" data-go="book/${b.id}">${cover(b)}<span class="bt">${esc(b.t)}</span><span class="ba">${esc(b.a)}</span>${b.st==='read'?starsOf(avg(b)):`<span class="st ${ST[b.st][1]}">${ST[b.st][0]}</span>`}</button>`).join('')||'<p class="empty">No books here yet.</p>'}</div></section>
-  <section class="sec"><div class="sh"><h2>Copied out</h2><div class="acts"><button class="btn" data-new="quote">+ Quote</button></div></div>
-   <div class="quotes">${D.quotes.map(q=>{const b=byId(D.books,q.book);return `<article><blockquote>“${esc(q.text)}”</blockquote><div class="qa">${b?`<button class="link" data-go="book/${b.id}">${esc(b.t)}</button>`:'<span class="label">Unknown book</span>'}${q.page?`<span class="label">p. ${esc(q.page)}</span>`:''}<button class="link" data-edit="quote|${q.id}">edit</button></div></article>`}).join('')||'<p class="empty">No quotes yet.</p>'}</div></section>`;
+  <section class="sec"><div class="sh"><h2>Copied out</h2><div class="acts">${D.quotes.length>3?`<button class="link" data-qmore>other quotes</button>`:''}<button class="btn" data-new="quote">+ Quote</button></div></div>
+   <div class="quotes">${threeQuotes().map(q=>{const b=byId(D.books,q.book);return `<article><blockquote>“${esc(q.text)}”</blockquote><div class="qa">${b?`<button class="link" data-go="book/${b.id}">${esc(b.t)}</button>`:'<span class="label">Unknown book</span>'}${q.page?`<span class="label">p. ${esc(q.page)}</span>`:''}<button class="link" data-edit="quote|${q.id}">edit</button></div></article>`}).join('')||'<p class="empty">No quotes yet.</p>'}</div></section>`;
 }
 
 function pBook(b){
@@ -505,7 +507,7 @@ function render(){
   if(keep){const el=document.querySelector(`[data-f="${keep}"],[data-fav="${keep}"],[data-gstept="${keep}"]`);if(el){el.focus();try{el.setSelectionRange(ks,ks)}catch(e){}}}
   showStatus();
 }
-window.addEventListener('hashchange',()=>{close(false);window.scrollTo(0,0);render()});
+window.addEventListener('hashchange',()=>{close(false);if(location.hash==='#reading')U.q3=null;window.scrollTo(0,0);render()});
 document.addEventListener('click',e=>{
   if(e.target.matches('[data-scrim]')){close();return}
   const t=e.target.closest('button');if(!t)return;const d=t.dataset;
@@ -522,6 +524,7 @@ document.addEventListener('click',e=>{
   if(d.newdoc){pop('doc',{name:'',url:''},true);U.pop.proj=d.newdoc;return}
   if(d.editdoc){const [pi,di]=d.editdoc.split('|');pop('doc',byId(byId(D.projects,pi).docs,di),false);U.pop.proj=pi;return}
   if(d.opendoc){const [pi,di]=d.opendoc.split('|');const p=byId(D.projects,pi),x=byId(p.docs,di);p.opened=TODAY;save();if(/^https?:/i.test(x.url))window.open(x.url,'_blank','noopener');else location.href=x.url;return}
+  if('qmore' in d){const old=U.q3||[],rest=D.quotes.map(q=>q.id).filter(i=>!old.includes(i)).sort(()=>Math.random()-.5);U.q3=[...rest,...old].slice(0,3);render();return}
   if('shuffle' in d){const n=quotePool().length;if(n>1){let k;do{k=Math.floor(Math.random()*n)}while(k===U.qi);U.qi=k}}
   else if(d.rhb){D.rlog[TODAY]=D.rlog[TODAY]||{};D.rlog[TODAY][d.rhb]=!D.rlog[TODAY][d.rhb]}
   else if(d.filter){U.filter=d.filter}
@@ -598,7 +601,7 @@ document.addEventListener('keydown',e=>{
 document.addEventListener('submit',e=>{
   e.preventDefault();const f=e.target,[k,ref]=(f.dataset.form||'').split('|');const v=readForm(f);const T=s=>(s||'').trim();
   if(k==='pop'){applyPop(f);return}
-  if(k==='quote'){if(!T(v.text))return;D.quotes.push({id:id(),book:ref,text:T(v.text),page:T(v.page)});toast('Quote saved');}
+  if(k==='quote'){if(!T(v.text))return;{const qid=id();D.quotes.push({id:qid,book:ref,text:T(v.text),page:T(v.page)});U.q3=[qid,...(U.q3||[])].slice(0,3)}toast('Quote saved');}
   else if(k==='log'){const p=byId(D.projects,ref);const w=Number(v.w||0);if(!w&&!T(v.n))return;p.sessions=p.sessions||[];p.sessions.push({d:TODAY,type:v.type,w:v.type==='writing'?w:0,n:T(v.n)});toast(v.type==='writing'&&w?`Logged ${fmt(w)} words`:'Session logged')}
   else if(k==='tag'){const b=byId(D.books,ref),t=T(v.t).toLowerCase();if(!t)return;b.tags=b.tags||[];if(!b.tags.includes(t))b.tags.push(t)}
   else if(k==='rhythm'){if(!T(v.t))return;D.rhythm.push({id:id(),t:T(v.t)})}

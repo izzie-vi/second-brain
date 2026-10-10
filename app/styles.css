@@ -85,14 +85,14 @@ textarea.inl.big:hover{border-bottom-color:var(--line)}
 .hello h1{font-family:var(--display);font-size:clamp(3rem,8vw,5.2rem);line-height:.95}
 .hello h1 em{color:var(--acc)}
 .hello p{color:var(--mute);font-size:1.05rem;grid-column:1/-1}
-.qcard{position:relative;margin-top:24px;background:var(--c-goals);border-radius:18px;padding:clamp(22px,4vw,38px) clamp(20px,5vw,56px);text-align:center;overflow:hidden}
+.qcard{position:relative;margin-top:18px;background:var(--c-goals);border-radius:14px;padding:14px clamp(16px,4vw,32px);text-align:center;overflow:hidden}
 .qcard::before,.qcard::after{content:"";position:absolute;border-radius:50%;opacity:.55}
-.qcard::before{width:120px;height:120px;background:#E9C9C4;left:-40px;top:-50px}
-.qcard::after{width:90px;height:90px;background:#B9D7E8;right:-28px;bottom:-36px}
-.qcard blockquote{position:relative;margin:6px auto 10px;max-width:30ch;font-family:var(--display);font-size:clamp(1.7rem,4vw,2.5rem);line-height:1.12;white-space:pre-line}
-.qcard .src{position:relative;font-family:var(--serif);font-style:italic;color:#6F675A}
+.qcard::before{width:64px;height:64px;background:#E9C9C4;left:-26px;top:-30px}
+.qcard::after{width:50px;height:50px;background:#B9D7E8;right:-18px;bottom:-22px}
+.qcard blockquote{position:relative;margin:4px auto 4px;max-width:46ch;font-family:var(--display);font-size:clamp(1.15rem,2.2vw,1.4rem);line-height:1.2;white-space:pre-line}
+.qcard .src{position:relative;font-size:.9rem;font-family:var(--serif);font-style:italic;color:#6F675A}
 .qcard .kind{position:relative;font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:#7B7464}
-.qcard .again{position:relative;margin-top:12px;border:0;background:none;font-size:.85rem;color:#6F675A;text-decoration:underline;text-underline-offset:3px}
+.qcard .again{position:relative;margin-top:4px;border:0;background:none;font-size:.85rem;color:#6F675A;text-decoration:underline;text-underline-offset:3px}
 .tiles{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px;margin-top:16px}
 .tile{background:var(--bg);color:var(--ink);border-radius:18px;padding:20px;display:flex;flex-direction:column;gap:10px;min-width:0}
 .tile .th{display:flex;justify-content:space-between;align-items:baseline;gap:8px}

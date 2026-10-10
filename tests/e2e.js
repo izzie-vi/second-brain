@@ -130,6 +130,13 @@ const settle=p=>p.waitForTimeout(1600);
   const st=await A.textContent('#savenote');if(!/synced/i.test(st))fail('status says '+st);
   // computer screenshots of each room with the phone-made data
   await A.click('nav [data-go="home"]');await shot(A,'10-today-computer');
+  // Reading shows only three quotes, and "other quotes" picks different ones
+  await A.evaluate(()=>{for(let i=0;i<5;i++)D.quotes.push({id:'qq'+i,book:'',text:'Quote number '+i,page:''});save()});
+  await A.click('nav [data-go="reading"]');await A.waitForSelector('[data-qmore]');
+  const q1=await A.$$eval('.quotes article blockquote',a=>a.map(x=>x.textContent));if(q1.length!==3)fail('reading shows '+q1.length+' quotes');
+  await A.click('[data-qmore]');const q2=await A.$$eval('.quotes article blockquote',a=>a.map(x=>x.textContent));
+  if(q2.length!==3||q2.every(x=>q1.includes(x)))fail('other quotes did not change: '+q2);
+  await shot(A,'11-reading-quotes');
   await browser.close();srv.close();
   console.log(process.exitCode?'E2E FAILED':'E2E passed');
 })().catch(e=>{console.error(e);process.exit(1)});
