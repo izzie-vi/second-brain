@@ -141,6 +141,8 @@ window.Store={
   load,save,start,merge3,deq,
   get status(){return status},
   get email(){return user&&user.email},
+  get client(){return sb},
+  get uid(){return user&&user.id},
   get online(){return online},
   on(k,f){hooks[k]=f},
   syncNow(){if(user)schedule(0)},

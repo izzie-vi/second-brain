@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Second Brain</title>
 <meta name="theme-color" content="#F5F1E8">
+<script>/* light or dark: this device's choice, or the phone's setting */
+(function(){var mq=matchMedia('(prefers-color-scheme: dark)');function a(){var p;try{p=localStorage.getItem('sb-theme')}catch(e){}p=p||'auto';var d=p==='dark'||(p==='auto'&&mq.matches);document.documentElement.toggleAttribute('data-dark',d);var m=document.querySelector('meta[name=theme-color]');if(m)m.content=d?'#1E1B17':'#F5F1E8'}window.applyTheme=a;a();mq.addEventListener&&mq.addEventListener('change',a)})();</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -22,7 +24,7 @@
 <div class="shell" id="app" hidden>
   <header class="top"><button class="mark" data-go="home">izzie's notebook</button><nav class="nav" id="nav" aria-label="Rooms"></nav></header>
   <main id="main"></main>
-  <footer class="pagefoot"><span class="label" id="savenote"></span><span class="footacts"><button class="link" data-export>Download a backup</button><button class="link" data-signout id="signout" hidden>Sign out</button></span></footer>
+  <footer class="pagefoot"><span class="label" id="savenote"></span><span class="footacts"><span class="look-sw" id="looksw" role="group" aria-label="Look"></span><button class="link" data-export>Download a backup</button><button class="link" data-signout id="signout" hidden>Sign out</button></span></footer>
 </div>
 <div id="layer"></div>
 <div id="toast"></div>
@@ -31,6 +33,7 @@
 <script src="sync.js"></script>
 <script src="app.js"></script>
 <script src="journal.js"></script>
+<script src="remind.js"></script>
 <script src="boot.js"></script>
 </body>
 </html>

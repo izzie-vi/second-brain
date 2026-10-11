@@ -1,6 +1,6 @@
 /* ================= journal, Monday plan, monthly wrapped =================
    D.days[date]  = {mood, head, text}   one per day: mood and headache from Today, the journal entry
-   D.weeks[mon]  = {note, planned}      the Monday plan for the week starting that Monday
+   D.weeks[mon]  = {note, planned, goals:[{id,t,done}]}   the Monday plan for the week starting that Monday
    D.wraps[ym]   = {book, song, artist, moment, worst, show, fix, pic, done, later}   wrap-up answers
    D.tlog[date]  = how many tasks were ticked that day (kept even after "Clear done") */
 const MOODS=['great','good','okay','low','rough'];
@@ -37,7 +37,8 @@ function stats(span){
     moved:D.projects.map(p=>({p,m:(p.moves||[]).filter(x=>inSpan(x.d,span))})).filter(x=>x.m.length),
     tasks:Object.keys(D.tlog).filter(k=>inSpan(k,span)).reduce((m,k)=>m+(+D.tlog[k]||0),0),
     rhythm,written:days.filter(d=>(d.text||'').trim()).length,days,moods,heads:heads.length,headTop:Object.keys(hl).sort((a,b)=>hl[b]-hl[a])[0],
-    quotes:D.quotes.filter(q=>inSpan(q.d,span))};
+    quotes:D.quotes.filter(q=>inSpan(q.d,span)),
+    wgoals:Object.keys(D.weeks).filter(k=>inSpan(k,span)).reduce((m,k)=>{const gs=D.weeks[k].goals||[];m.all+=gs.length;m.done+=gs.filter(g=>g.done).length;return m},{all:0,done:0})};
 }
 /* "mostly good, 1 low day" */
 function moodWords(s){
@@ -62,13 +63,17 @@ function homeJournal(){
     tiles.push(`<section class="tile t-week w3"><div class="th"><h2>New week</h2><span class="label">last week</span></div>
      <div class="wkstats">${[[s.books.length,s.books.length===1?'book':'books'],[s.words,'words'],[s.tasks,'tasks done']].map(([n,l])=>`<div><b>${fmt(n)}</b><span class="label">${l}</span></div>`).join('')}</div>
      <button class="btn solid" style="align-self:flex-start" data-go="week/${mon}">Plan this week</button></section>`)}
-  else if((wk.note||'').trim())tiles.push(`<section class="tile t-note w3"><div class="th"><h2>This week</h2><button class="link" data-go="week/${mon}">plan</button></div><p class="wnote">${esc(wk.note)}</p></section>`);
+  else if((wk.note||'').trim()||(wk.goals||[]).length)tiles.push(`<section class="tile t-note w3"><div class="th"><h2>This week</h2><button class="link" data-go="week/${mon}">plan</button></div>${wgoalRows(mon,false)}${(wk.note||'').trim()?`<p class="wnote">${esc(wk.note)}</p>`:''}</section>`);
   /* the first week of a month: wrap up the month before */
   const pm=ymOff(-1),w=D.wraps[pm]||{};
   if(+TODAY.slice(8)<=7&&!w.done&&w.later!==TODAY&&hasData(pm))tiles.push(`<section class="tile t-wrap w6"><p class="label">a few questions, then it's ready</p><h2>Wrap up <em>${monthName(pm)}</em></h2>
     <div class="row3"><button class="btn solid" data-go="wrap/${pm}">Start</button><button class="btn" data-wlater="${pm}">Later</button></div></section>`);
   return tiles;
 }
+/* small goals for one week, set in the Monday plan and ticked on Today */
+function wgoalRows(mon,edit){const gs=(D.weeks[mon]||{}).goals||[];
+  return gs.map(g=>`<div class="wgoal ${g.done?'done':''}"><input type="checkbox" class="tick" data-wgdone="${mon}|${g.id}" ${g.done?'checked':''} aria-label="${esc(g.t)}">${edit?`<input class="inl" data-wgt="${mon}|${g.id}" value="${esc(g.t)}" aria-label="Goal for the week"><button class="ib" data-wgdel="${mon}|${g.id}" aria-label="Remove ${esc(g.t)}">×</button>`:`<span>${esc(g.t)}</span>`}</div>`).join('')}
+const wgoal=(mon,gid)=>((D.weeks[mon]||{}).goals||[]).find(g=>g.id===gid);
 function hasData(ym){const sp=spanOf(ym),s=stats(sp);return !!(s.books.length||s.sessions||s.tasks||s.days.length||s.rhythm||D.wraps[ym])}
 
 /* ---------- Journal room ---------- */
@@ -87,9 +92,17 @@ function vJournal(){
     <div class="jrow"><span>Mood</span>${pills('mood',sel,MOODS,o.mood)}</div>
     <div class="jrow"><span>Headache</span>${pills('head',sel,HEADS,o.head)}</div>
     <textarea class="inl jtext" data-jt="${sel}" rows="6" placeholder="Nothing written yet." aria-label="Entry for ${longDay(sel)}">${esc(o.text||'')}</textarea>
-    ${wk&&(wk.planned||(wk.note||'').trim())?`<button class="link" style="align-self:flex-start" data-go="week/${sel}">This week's plan</button>`:''}</article>
+    ${wk&&(wk.planned||(wk.note||'').trim())?`<button class="link" style="align-self:flex-start" data-go="week/${sel}">This week's plan</button>`:''}
+    ${onThisDay(sel)}</article>
   </div>
   ${archive()}`;
+}
+/* the same day in earlier years */
+function onThisDay(sel){
+  const md=sel.slice(4),ys=[...new Set(Object.keys(D.days).map(k=>k.slice(0,4)))].filter(y=>y<sel.slice(0,4)).sort().reverse();
+  const hits=ys.map(y=>y+md).filter(k=>{const o=D.days[k];return o&&((o.text||'').trim()||o.mood)});
+  if(!hits.length)return '';
+  return `<div class="otd"><span class="label">on this day</span>${hits.map(k=>{const o=D.days[k],t=(o.text||'').trim().replace(/\s+/g,' ');return `<button data-go="entry/${k}"><span class="label">${k.slice(0,4)}${o.mood?' · '+o.mood:''}${o.head?' · headache':''}</span>${t?`<span class="t">${esc(t.length>180?t.slice(0,177)+'…':t)}</span>`:''}</button>`}).join('')}</div>`;
 }
 function archive(){
   const ms=new Set();
@@ -130,10 +143,13 @@ function pWeek(mon){
   <div class="wgrid">
    <section class="sec"><div class="sh"><h2>Tasks</h2><span class="label">give them a day</span></div>
     <div>${open.map(t=>{const cur=dayOfTask(t);return `<div class="wtask"><span class="wt">${esc(t.t)}</span><span class="wdays">${days.map(k=>`<button data-tday="${t.id}|${k}" aria-pressed="${cur===k}" ${k<TODAY?'disabled':''} aria-label="${esc(t.t)} on ${wdLong(k)}">${wdShort(k)}</button>`).join('')}</span></div>`}).join('')||'<p class="empty">No open tasks. Add one below.</p>'}
-    <form class="addline" data-form="wtask"><input name="t" placeholder="+ Add" aria-label="New task"></form></div></section>
+    <form class="addline" data-form="wtask"><input name="t" placeholder="+ Add" aria-label="New task"></form>
+    ${(()=>{const rs=D.repeats.map(r=>({r,ds:days.filter(k=>dueOn(r,k))})).filter(x=>x.ds.length);return rs.length?`<p class="label wrepline">Repeating this week: ${rs.map(x=>`${esc(x.r.t)} (${x.ds.map(wdShort).join(', ')})`).join(' · ')}</p>`:''})()}</div></section>
    <div style="display:flex;flex-direction:column;gap:8px;min-width:0">
     <section class="sec"><div class="sh"><h2>${monthName(mon.slice(0,7))} goals</h2><button class="link" data-wgoals>all goals</button></div>
      <div>${goals.map(gRow).join('')||'<p class="empty">No goals this month.</p>'}</div></section>
+    <section class="sec"><div class="sh"><h2>Goals for the week</h2><span class="label">small ones</span></div>
+     <div>${wgoalRows(mon,true)}<form class="addline" data-form="wgoal|${mon}"><input name="t" placeholder="+ Add a goal" aria-label="New goal for the week"></form></div></section>
     <section class="sec"><div class="sh"><h2>Note for the week</h2></div>
      <textarea class="inl" data-wnote="${mon}" rows="3" placeholder="Stays on Today until Sunday" aria-label="Note for the week">${esc(wk.note||'')}</textarea></section>
     <button class="btn solid" style="align-self:flex-start;margin-top:18px" data-wdone="${mon}">Done</button>
@@ -179,7 +195,7 @@ function pWrapped(p){
   if(s.sessions||s.moved.length)bands.push(`<div class="band b-write"><h2>Writing</h2>
     <div class="nums">${s.words?num(s.words,'words'):''}${num(s.sessions,s.sessions===1?'session':'sessions')}</div>
     <div class="pair">${s.moved.map(x=>pair('moved',x.p.t,x.m.map(m=>PHASES[m.to]).join(' → '))).join('')}${s.topProj&&s.topProj.p?pair('most worked on',s.topProj.p.t,plural(s.topProj.n,'session')):''}</div></div>`);
-  if(s.tasks||s.rhythm)bands.push(`<div class="band b-days"><h2>Days</h2><div class="nums">${s.tasks?num(s.tasks,'tasks done'):''}${s.rhythm?num(s.rhythm,'days of the daily rhythm'):''}</div></div>`);
+  if(s.tasks||s.rhythm||s.wgoals.all)bands.push(`<div class="band b-days"><h2>Days</h2><div class="nums">${s.tasks?num(s.tasks,'tasks done'):''}${s.rhythm?num(s.rhythm,'days of the daily rhythm'):''}${s.wgoals.all?num(s.wgoals.done,`of ${s.wgoals.all} week goals met`):''}</div></div>`);
   if(goals.length)bands.push(`<div class="band b-goals"><h2>Goals</h2><div class="glist">${goals.map(g=>{const x=gp(g);return `<div><div class="gl"><span>${esc(g.t)}</span><span class="label">${x.txt}</span></div><div class="bar"><i style="width:${x.p}%"></i></div></div>`}).join('')}</div></div>`);
   if(s.days.length){const mw=moodWords(s);bands.push(`<div class="band b-jr"><h2>How you felt</h2>
     <div class="nums">${s.written?num(s.written,s.written===1?'day written':'days written'):''}${!s.heads?'':num(s.heads,(s.heads===1?'headache day':'headache days')+(s.headTop&&s.heads>1?', mostly '+s.headTop:''))}</div>
@@ -214,6 +230,7 @@ document.addEventListener('click',e=>{
   else if('wgoals' in d){U.glvl='month';U.gper={...CUR};go('goals');return}
   else if(d.wlater){D.wraps[d.wlater]={...(D.wraps[d.wlater]||{}),later:TODAY}}
   else if(d.wmake){D.wraps[d.wmake]={...(D.wraps[d.wmake]||{}),done:true};save();go('wrapped/'+d.wmake);return}
+  else if(d.wgdel){const [m,g]=d.wgdel.split('|');if(D.weeks[m])D.weeks[m]={...D.weeks[m],goals:(D.weeks[m].goals||[]).filter(x=>x.id!==g)}}
   else if(d.wpicdel){const w={...(D.wraps[d.wpicdel]||{})};delete w.pic;D.wraps[d.wpicdel]=w}
   else return;
   render();
@@ -225,11 +242,16 @@ document.addEventListener('input',e=>{
 });
 document.addEventListener('change',e=>{
   const x=e.target,d=x.dataset;
-  if(d.wq){const [ym,f]=d.wq.split('|');D.wraps[ym]={...(D.wraps[ym]||{}),[f]:x.value.trim()};save()}
+  if(d.wgdone){const [m,g]=d.wgdone.split('|'),o=wgoal(m,g);if(o){o.done=x.checked;save();setTimeout(render,200)}}
+  else if(d.wgt){const [m,g]=d.wgt.split('|'),o=wgoal(m,g);if(o&&x.value.trim()){o.t=x.value.trim();save()}}
+  else if(d.wq){const [ym,f]=d.wq.split('|');D.wraps[ym]={...(D.wraps[ym]||{}),[f]:x.value.trim()};save()}
   else if(d.wpic&&x.files[0]){const ym=d.wpic;shrink(x.files[0]).then(u=>{D.wraps[ym]={...(D.wraps[ym]||{}),pic:u};render()}).catch(()=>toast('Couldn\'t open that picture'))}
 });
 document.addEventListener('submit',e=>{
-  const f=e.target;if(f.dataset.form!=='wtask')return;
+  const f=e.target,[fk,fm]=(f.dataset.form||'').split('|');
+  if(fk==='wgoal'){const v=f.t.value.trim();if(!v)return;const w=D.weeks[fm]||{};D.weeks[fm]={...w,goals:[...(w.goals||[]),{id:id(),t:v,done:false}]};render();
+    setTimeout(()=>document.querySelector(`form[data-form="wgoal|${fm}"] input`)?.focus(),0);return}
+  if(f.dataset.form!=='wtask')return;
   const v=f.t.value.trim();if(!v)return;D.tasks.push({id:id(),t:v,when:'now'});render();
   setTimeout(()=>document.querySelector('form[data-form="wtask"] input')?.focus(),0);
 });

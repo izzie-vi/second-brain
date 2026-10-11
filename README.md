@@ -6,12 +6,15 @@ A personal second brain: Today, Reading, Writing, Days, Goals and Journal. It is
 
 - `app/` is the whole site. Plain HTML, CSS and JavaScript, no build step.
   - `app.js`: the rooms Today, Reading, Writing, Days and Goals (ported from the approved mockup).
-  - `journal.js`: the Journal room, mood and headache on Today, the Monday plan and the monthly wrapped.
+  - `journal.js`: the Journal room, mood and headache on Today, the Monday plan (with goals for the week), On this day, and the monthly wrapped.
+  - `remind.js`: turning phone reminders for fixed dates on and off.
   - `sync.js`: saves to the device and syncs with Supabase. Edits made on two devices at once are merged item by item.
   - `boot.js`: sign-in and start-up.
   - `config.js`: the Supabase project URL and anon key.
   - `sw.js`, `manifest.webmanifest`, `icons/`: offline support and "Add to Home Screen".
 - `app/supabase/schema.sql`: run once in the Supabase SQL editor.
+- `app/supabase/remind/index.ts` and `reminders.sql`: the phone reminders (an Edge Function run every hour). Setup steps: `app/supabase/REMINDERS.md`.
+- Light or dark follows the device setting unless "Light" or "Dark" is picked in the footer (saved per device).
 - Book covers and search come from Open Library (no account needed).
 - Pushing to `main` publishes the site with GitHub Pages (`.github/workflows/pages.yml`).
 
@@ -25,6 +28,8 @@ A personal second brain: Today, Reading, Writing, Days, Goals and Journal. It is
 
 ```
 node tests/merge.test.js
+node tests/remind.test.js      # which dates get a reminder
 node tests/e2e.js /tmp/shots   # needs Playwright + Chromium
+node tests/round6.js /tmp/shots6
 ```
 The end-to-end test uses a stand-in for Supabase (`tests/fake-supabase.js`) to check two devices syncing.
