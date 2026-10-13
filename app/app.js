@@ -197,7 +197,7 @@ function vHome(){
   <div class="tiles">
    <section class="tile t-days w4 wide"><div class="th"><h2>Your day</h2><button class="link" data-go="days">open Days</button></div>
     <div class="split">
-     <div><p class="label">Picked for today</p>${picks.length?picks.map(t=>`${pickRow(t,'row')}<span class="txt">${esc(t.t)}</span></div>`).join(''):'<p class="empty">Nothing picked. That\'s allowed.</p>'}</div>
+     <div><p class="label">Picked for today</p>${picks.length?picks.map(t=>`${pickRow(t,'row')}<span class="txt">${esc(t.t)}</span></div>`).join(''):'<p class="empty">Nothing picked. That\'s allowed.</p>'}<form class="addline" data-form="today"><input name="t" placeholder="+ Add" aria-label="Add something for today"></form></div>
      <div><p class="label" style="margin-bottom:8px">Every day · ${doneN} of ${D.rhythm.length}</p><div class="stickers">${D.rhythm.map(r=>`<button data-rhb="${r.id}" aria-pressed="${!!log[r.id]}">${esc(r.t)}</button>`).join('')}</div>
       <div class="week" aria-label="Last seven days">${[6,5,4,3,2,1,0].map(i=>{const k=off(-i),l=D.rlog[k]||{},n=D.rhythm.filter(r=>l[r.id]).length;return `<div><span class="label">${new Date(Date.now()-i*DAY).toLocaleDateString('en-US',{weekday:'narrow'})}</span><i class="${D.rhythm.length&&n>=Math.ceil(D.rhythm.length/2)?'on':''}" title="${n} done"></i></div>`}).join('')}</div></div>
     </div></section>
@@ -205,13 +205,16 @@ function vHome(){
     ${upcoming.slice(0,3).map(d=>{const p=parse(d.date);return `<button class="minidate" data-go="days"><b>${p.d}<small>${MONTHS[p.m-1].slice(0,3)}</small></b><span><span style="display:block">${esc(d.t)}</span><span class="label">${esc(d.tag||'')}${d.time?' · '+esc(d.time):''}</span></span></button>`}).join('')||'<p class="empty">Nothing fixed ahead.</p>'}</section>
    ${jt.join('')}
    <section class="tile t-read w3"><div class="th"><h2>Reading now</h2><button class="link" data-go="reading">library</button></div>
-    ${reading.map(b=>{const pr=progress(b);return `<button class="mini" data-go="book/${b.id}"><span>${cover(b)}</span><span><span class="tt">${esc(b.t)}</span><span class="label">${progTxt(b)}</span>${pr!==null?`<span class="bar" style="display:block;margin-top:6px"><i style="width:${pr}%"></i></span>`:''}</span></button>`}).join('')||'<p class="empty">Nothing open right now.</p>'}</section>
+    ${reading.map(b=>{const pr=progress(b),pg=b.pmode==='pages'&&b.pages;return `<div class="minirow"><button class="mini" data-go="book/${b.id}"><span>${cover(b)}</span><span><span class="tt">${esc(b.t)}</span><span class="label">${progTxt(b)}</span>${pr!==null?`<span class="bar" style="display:block;margin-top:6px"><i style="width:${pr}%"></i></span>`:''}</span></button>${pr!==null?`<button class="ib qpbtn" data-qp="${b.id}" aria-label="Update progress on ${esc(b.t)}" aria-expanded="${U.qp===b.id}">+</button>`:''}</div>
+     ${U.qp===b.id?`<form class="qprog" data-form="qprog|${b.id}"><label>${pg?'On page':'Now at'} <input name="v" type="number" inputmode="numeric" min="0" ${pg?`max="${b.pages}"`:'max="100"'} value="${pg?b.pg||'':b.pct||''}" aria-label="${pg?'Current page':'Percent'}"> ${pg?'of '+b.pages:'%'}</label><button class="btn solid">Save</button></form>`:''}`}).join('')||'<p class="empty">Nothing open right now.</p>'}</section>
    <section class="tile t-write ${odd?'w6':'w3'}"><div class="th"><h2>On the desk</h2><button class="link" data-go="writing">all projects</button></div>
     ${pins.map(p=>`<button class="mini" data-go="project/${p.id}"><span>${gen(p)}</span><span><span class="tt">${esc(p.t)}</span><span class="chiprow">${stageChips(p)}</span><span class="label" style="display:block;margin-top:4px">${esc(p.at||'')}</span></span></button>`).join('')||'<p class="empty">Nothing pinned. Pin a project in Writing.</p>'}</section>
   </div>`;
 }
 
 /* ================= reading ================= */
+/* books read in a month: finished that month, or open and started by then (plus the one already picked) */
+const readIn=(ym,keep)=>D.books.filter(b=>b.id===keep||(b.st==='read'&&(b.end||'').startsWith(ym))||(b.st==='reading'&&(b.start||'').slice(0,7)<=ym));
 function vReading(){
   const open=D.books.filter(b=>b.st==='reading');
   const g=D.goals.find(x=>x.kind==='number'&&x.auto&&x.per===Y);
@@ -227,7 +230,7 @@ function vReading(){
   const any=R.year||R.tag||R.rate||R.fmt||q||U.shelf||F!=='all';
   const fv=D.favs[YM]||{};
   const pastM=Object.keys(D.favs).filter(k=>k<YM).sort().reverse();
-  const opts=D.books.filter(b=>b.st==='read'||b.st==='reading');
+  const opts=readIn(YM,fv.book);
   return `<section class="head rtop"><div style="display:flex;flex-direction:column;gap:8px"><h1 style="font-family:var(--display);font-size:clamp(3rem,8vw,5.2rem);line-height:.95">Reading</h1></div>
    ${g?`<button class="ring" style="--p:${pct(n,g.target)}" data-go="goals" title="Your reading goal, also in Goals"><span><span><b>${n}</b><span class="label">of ${g.target} this year</span></span></span></button>`:`<button class="btn" data-new="goal|books">Set a reading goal</button>`}</section>
   <section class="sec"><div class="sh"><h2>Currently reading</h2><div class="acts">${D.books.some(b=>b.st==='want')?'<button class="btn" data-pickme>Pick for me</button>':''}<button class="btn" data-new="book">+ Book</button></div></div>
@@ -426,7 +429,7 @@ function vGoals(){
   const L=U.glvl,P=U.gper[L];
   const pers=L==='year'?[Y]:L==='quarter'?SUB.year(Y):Array.from({length:12},(_,i)=>Y+'-'+String(i+1).padStart(2,'0'));
   const list=D.goals.filter(g=>g.per===P);
-  return head('Goals')+`
+  return head('Goals')+weekGoalsSec()+`
   <div class="seg" role="group" aria-label="Time frame">${[['year','Year'],['quarter','Quarter'],['month','Month']].map(([k,l])=>`<button data-glvl="${k}" aria-pressed="${L===k}">${l}</button>`).join('')}</div>
   ${L!=='year'?`<div class="chips" style="margin-top:12px" role="group" aria-label="Which ${L}">${pers.map(p=>`<button data-gper="${p}" aria-pressed="${p===P}">${perShort(p)}</button>`).join('')}</div>`:''}
   <section class="sec"><div class="sh"><h2>${perLabel(P)}</h2><div class="acts"><button class="btn" data-new="goal|${P}">+ Goal</button></div></div>
@@ -651,6 +654,7 @@ document.addEventListener('click',e=>{
   else if(d.untag){const [i,t]=d.untag.split('|');const b=byId(D.books,i);b.tags=(b.tags||[]).filter(x=>x!==t)}
   else if(d.bst){const [i,s]=d.bst.split('|');const b=byId(D.books,i);b.st=s;if(s==='reading'&&!b.start)b.start=TODAY;if(s==='read'){if(!b.end)b.end=TODAY;if(!b.times)b.times=1}}
   else if(d.finish){const b=byId(D.books,d.finish);b.st='read';b.end=b.end||TODAY;b.times=(b.times||0)+1;if(b.pmode==='pages'&&b.pages)b.pg=b.pages;if(b.pmode==='pct')b.pct=100;toast(`Finished ${b.t}. Grade it below if you like.`)}
+  else if(d.qp){U.qp=U.qp===d.qp?'':d.qp;render();setTimeout(()=>document.querySelector('.qprog input')?.select(),0);return}
   else if(d.pmode){const [i,m]=d.pmode.split('|');byId(D.books,i).pmode=m}
   else if(d.times){const [i,n]=d.times.split('|');const b=byId(D.books,i);b.times=Math.max(0,(b.times||0)+Number(n))}
   else if(d.bsh){const [i,s]=d.bsh.split('|');const b=byId(D.books,i);b.sh=b.sh.includes(s)?b.sh.filter(x=>x!==s):[...b.sh,s]}
@@ -727,7 +731,11 @@ document.addEventListener('submit',e=>{
   else if(k==='tag'){const b=byId(D.books,ref),t=T(v.t).toLowerCase();if(!t)return;b.tags=b.tags||[];if(!b.tags.includes(t))b.tags.push(t)}
   else if(k==='rhythm'){if(!T(v.t))return;D.rhythm.push({id:id(),t:T(v.t)})}
   else if(k==='task'){if(!T(v.t))return;D.tasks.push({id:id(),t:T(v.t),when:ref})}
+  else if(k==='today'){if(!T(v.t))return;D.tasks.push({id:id(),t:T(v.t),when:'now',pick:TODAY})}
+  else if(k==='qprog'){const b=byId(D.books,ref),n=Math.max(0,Number(v.v||0));if(!b)return;U.qp='';
+    if(b.pmode==='pages'){b.pg=b.pages?Math.min(n,+b.pages):n;toast(b.pages&&n>=+b.pages?'Last page! Mark it finished in the book':`Page ${b.pg}`)}else{b.pct=Math.min(n,100);toast(`${b.pct}%`)}
+    render();return}
   else if(k==='gstep'){if(!T(v.t))return;const g=byId(D.goals,ref);g.steps=g.steps||[];g.steps.push({t:T(v.t),done:false})}
   else return;
-  const sel=k+'|'+ref;render();setTimeout(()=>document.querySelector(`form[data-form="${CSS.escape(sel)}"] input,form[data-form="${CSS.escape(sel)}"] textarea`)?.focus(),0);
+  const sel=f.dataset.form;render();setTimeout(()=>document.querySelector(`form[data-form="${CSS.escape(sel)}"] input,form[data-form="${CSS.escape(sel)}"] textarea`)?.focus(),0);
 });

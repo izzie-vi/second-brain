@@ -66,11 +66,28 @@ const at=async(p,day,h='08:00')=>{await p.clock.setFixedTime(new Date(`${day}T${
   await P.fill('[data-form^="wgoal|"] input','Finish chapter 4');await P.press('[data-form^="wgoal|"] input','Enter');
   await P.fill('[data-form^="wgoal|"] input','Two long walks');await P.press('[data-form^="wgoal|"] input','Enter');
   await shot(P,'02-week-phone');
+  await P.click('.back');await P.waitForSelector('#main .hello');if((await P.$$('.t-week .wgoal')).length!==2)fail('week goals should show on Monday before Done');
+  await P.click('nav [data-go="goals"]');if(!(await P.textContent('.wgsec')).includes('Finish chapter 4'))fail('week goals missing in Goals');
+  await P.click('.wgsec [data-go^="week/"]');await P.waitForSelector('[data-wdone]');
   await P.click('[data-wdone]');await P.waitForSelector('.t-note');
   await P.click('.t-note [data-wgdone]');await P.waitForTimeout(400);
   if(!(await P.$('.t-note .wgoal.done')))fail('week goal not ticked on Today');
   await at(P,'2026-10-18');if(!(await P.$('.t-note')))fail('week goals should stay until Sunday');
   await at(P,'2026-10-12');await shot(P,'03-today-phone');
+
+  /* quick add for today, quick reading progress */
+  await P.evaluate(()=>{location.hash='#home';render()});
+  await P.fill('form[data-form="today"] input','Email Dr Marsh');await P.press('form[data-form="today"] input','Enter');
+  if(!(await P.evaluate(()=>D.tasks.some(t=>t.t==='Email Dr Marsh'&&t.pick===TODAY))))fail('quick add should pick the task for today');
+  await P.evaluate(()=>{D.books.push({id:'qb',t:'Quick book',a:'',st:'reading',pmode:'pages',pages:300,pg:10,sh:[],fmt:'Paper',tags:[]});render()});
+  await P.click('[data-qp="qb"]');await P.fill('.qprog input','42');await P.press('.qprog input','Enter');
+  if(await P.evaluate(()=>D.books.find(b=>b.id==='qb').pg)!==42||await P.$('.qprog'))fail('quick progress not saved');
+  await P.evaluate(()=>{D.books=D.books.filter(b=>b.id!=='qb');D.tasks=D.tasks.filter(t=>t.t!=='Email Dr Marsh');render()});
+
+  /* month favorites only offer books read that month */
+  {const opts=await P.evaluate(()=>{D.books.push({id:'bo1',t:'Oct read',a:'',st:'read',end:'2026-10-03',sh:[],fmt:'Paper'},{id:'bs1',t:'Sept read',a:'',st:'read',end:'2026-09-20',sh:[],fmt:'Paper'});location.hash='#reading';render();return [...document.querySelectorAll('[data-fav="book"] option')].map(o=>o.textContent)});
+    if(!opts.includes('Oct read')||opts.includes('Sept read'))fail('October favorites should list only October books: '+opts);
+    await P.evaluate(()=>{D.books=D.books.filter(b=>!['bo1','bs1'].includes(b.id));location.hash='#home';render()})}
 
   /* Pick for me, DNF reason, stats */
   await P.evaluate(()=>{const B=(t,o)=>({id:'pk'+t.length+t[0],t,a:'Someone',st:'want',fmt:'Physical',sh:[],tags:[],grades:{},pages:'',...o});
