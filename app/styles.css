@@ -548,6 +548,7 @@ label.link{cursor:pointer}
 .wgoal{display:flex;gap:10px;align-items:center;padding:6px 0}
 .wgoal.done .inl,.wgoal.done span{text-decoration:line-through;opacity:.6}
 .wgoal .inl{flex:1;min-width:0}
+.wgsec{margin-bottom:22px}
 /* pick for me */
 .pickme{display:grid;grid-template-columns:96px 1fr;gap:16px;align-items:start}
 .pickme .cover{width:96px}

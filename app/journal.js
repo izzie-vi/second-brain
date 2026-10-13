@@ -62,7 +62,8 @@ function homeJournal(){
   if(TODAY===mon&&!wk.planned){const s=stats([addD(mon,-7),addD(mon,-1)]);
     tiles.push(`<section class="tile t-week w3"><div class="th"><h2>New week</h2><span class="label">last week</span></div>
      <div class="wkstats">${[[s.books.length,s.books.length===1?'book':'books'],[s.words,'words'],[s.tasks,'tasks done']].map(([n,l])=>`<div><b>${fmt(n)}</b><span class="label">${l}</span></div>`).join('')}</div>
-     <button class="btn solid" style="align-self:flex-start" data-go="week/${mon}">Plan this week</button></section>`)}
+     ${(wk.goals||[]).length?`<div><p class="label">goals for the week</p>${wgoalRows(mon,false)}</div>`:''}
+     <button class="btn solid" style="align-self:flex-start" data-go="week/${mon}">${(wk.goals||[]).length?'Finish the plan':'Plan this week'}</button></section>`)}
   else if((wk.note||'').trim()||(wk.goals||[]).length)tiles.push(`<section class="tile t-note w3"><div class="th"><h2>This week</h2><button class="link" data-go="week/${mon}">plan</button></div>${wgoalRows(mon,false)}${(wk.note||'').trim()?`<p class="wnote">${esc(wk.note)}</p>`:''}</section>`);
   /* the first week of a month: wrap up the month before */
   const pm=ymOff(-1),w=D.wraps[pm]||{};
@@ -73,6 +74,10 @@ function homeJournal(){
 /* small goals for one week, set in the Monday plan and ticked on Today */
 function wgoalRows(mon,edit){const gs=(D.weeks[mon]||{}).goals||[];
   return gs.map(g=>`<div class="wgoal ${g.done?'done':''}"><input type="checkbox" class="tick" data-wgdone="${mon}|${g.id}" ${g.done?'checked':''} aria-label="${esc(g.t)}">${edit?`<input class="inl" data-wgt="${mon}|${g.id}" value="${esc(g.t)}" aria-label="Goal for the week"><button class="ib" data-wgdel="${mon}|${g.id}" aria-label="Remove ${esc(g.t)}">×</button>`:`<span>${esc(g.t)}</span>`}</div>`).join('')}
+/* this week's goals in the Goals room, so they can be found and set any day */
+function weekGoalsSec(){const mon=monOf(TODAY),gs=(D.weeks[mon]||{}).goals||[];
+  return `<section class="sec wgsec"><div class="sh"><h2>This week</h2><button class="link" data-go="week/${mon}">${gs.length?'edit':'set goals'}</button></div>
+   <div>${wgoalRows(mon,false)||'<p class="empty">No goals for this week yet.</p>'}</div></section>`}
 const wgoal=(mon,gid)=>((D.weeks[mon]||{}).goals||[]).find(g=>g.id===gid);
 function hasData(ym){const sp=spanOf(ym),s=stats(sp);return !!(s.books.length||s.sessions||s.tasks||s.days.length||s.rhythm||D.wraps[ym])}
 
@@ -160,7 +165,7 @@ function pWeek(mon){
 const WQ=[['song','Fav song'],['artist','By'],['moment','Fav moment'],['worst','Worst moment','Optional'],['show','Fav movie or show','Optional'],['fix','Hyperfixation of the month','Optional']];
 function pWrapQ(ym){
   const w=D.wraps[ym]||{},fav=(D.favs[ym]||{}).book,bk=w.book||fav||'';
-  const opts=D.books.filter(b=>b.st==='read'||b.st==='reading'||b.id===bk).sort((a,b)=>(inSpan(b.end,spanOf(ym))?1:0)-(inSpan(a.end,spanOf(ym))?1:0));
+  const opts=readIn(ym,bk);
   const q=([f,l,ph])=>`<label class="q"><span>${l}</span><input data-wq="${ym}|${f}" value="${esc(w[f]||'')}" placeholder="${ph||''}"></label>`;
   return `<button class="back" data-go="home">← Today</button>
   <section class="head"><p class="label">wrap up</p><h1>${monthName(ym)}</h1></section>

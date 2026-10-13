@@ -212,6 +212,8 @@ function vHome(){
 }
 
 /* ================= reading ================= */
+/* books read in a month: finished that month, or open and started by then (plus the one already picked) */
+const readIn=(ym,keep)=>D.books.filter(b=>b.id===keep||(b.st==='read'&&(b.end||'').startsWith(ym))||(b.st==='reading'&&(b.start||'').slice(0,7)<=ym));
 function vReading(){
   const open=D.books.filter(b=>b.st==='reading');
   const g=D.goals.find(x=>x.kind==='number'&&x.auto&&x.per===Y);
@@ -227,7 +229,7 @@ function vReading(){
   const any=R.year||R.tag||R.rate||R.fmt||q||U.shelf||F!=='all';
   const fv=D.favs[YM]||{};
   const pastM=Object.keys(D.favs).filter(k=>k<YM).sort().reverse();
-  const opts=D.books.filter(b=>b.st==='read'||b.st==='reading');
+  const opts=readIn(YM,fv.book);
   return `<section class="head rtop"><div style="display:flex;flex-direction:column;gap:8px"><h1 style="font-family:var(--display);font-size:clamp(3rem,8vw,5.2rem);line-height:.95">Reading</h1></div>
    ${g?`<button class="ring" style="--p:${pct(n,g.target)}" data-go="goals" title="Your reading goal, also in Goals"><span><span><b>${n}</b><span class="label">of ${g.target} this year</span></span></span></button>`:`<button class="btn" data-new="goal|books">Set a reading goal</button>`}</section>
   <section class="sec"><div class="sh"><h2>Currently reading</h2><div class="acts">${D.books.some(b=>b.st==='want')?'<button class="btn" data-pickme>Pick for me</button>':''}<button class="btn" data-new="book">+ Book</button></div></div>
@@ -426,7 +428,7 @@ function vGoals(){
   const L=U.glvl,P=U.gper[L];
   const pers=L==='year'?[Y]:L==='quarter'?SUB.year(Y):Array.from({length:12},(_,i)=>Y+'-'+String(i+1).padStart(2,'0'));
   const list=D.goals.filter(g=>g.per===P);
-  return head('Goals')+`
+  return head('Goals')+weekGoalsSec()+`
   <div class="seg" role="group" aria-label="Time frame">${[['year','Year'],['quarter','Quarter'],['month','Month']].map(([k,l])=>`<button data-glvl="${k}" aria-pressed="${L===k}">${l}</button>`).join('')}</div>
   ${L!=='year'?`<div class="chips" style="margin-top:12px" role="group" aria-label="Which ${L}">${pers.map(p=>`<button data-gper="${p}" aria-pressed="${p===P}">${perShort(p)}</button>`).join('')}</div>`:''}
   <section class="sec"><div class="sh"><h2>${perLabel(P)}</h2><div class="acts"><button class="btn" data-new="goal|${P}">+ Goal</button></div></div>
