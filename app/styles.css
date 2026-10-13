@@ -116,6 +116,13 @@ textarea.inl.big:hover{border-bottom-color:var(--line)}
 .minidate b{display:grid;place-items:center;border:2px solid var(--ink);border-radius:8px;height:52px;font-family:var(--serif);font-size:1.5rem;line-height:1}
 .minidate b small{display:block;font-family:var(--mono);font-size:.6rem;font-weight:400;text-transform:uppercase}
 .mini{display:grid;grid-template-columns:56px 1fr;gap:14px;align-items:center;border:0;background:none;padding:4px 0;text-align:left;width:100%}
+.minirow{display:flex;align-items:center;gap:6px}
+.minirow .mini{flex:1;min-width:0}
+.qpbtn{flex:none;font-size:1.2rem;border:1px solid var(--line);border-radius:50%;width:32px;height:32px;color:var(--ink);opacity:1}
+.qprog input::-webkit-inner-spin-button{display:none}
+.qprog input{-moz-appearance:textfield}
+.qprog{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:4px 0 10px 70px}
+.qprog input{width:5em;font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
 .mini .tt{display:block;font-family:var(--serif);font-size:1.08rem;line-height:1.25}
 
 /* reading */
