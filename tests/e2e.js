@@ -42,19 +42,26 @@ const settle=p=>p.waitForTimeout(1600);
   await P.click('nav [data-go="reading"]');await P.click('[data-new="book"]');
   await P.fill('[data-olq]','East of Eden');await P.waitForSelector('[data-olpick="0"]');await shot(P,'02-add-book-search');
   await P.click('[data-olpick="0"]');await P.selectOption('.modal select[name=st]','reading');await P.click('.modal .btn.solid');
-  await P.waitForSelector('.bpage');
-  if(!(await P.$('.bpage img.real')))fail('cover not shown after picking search result');
+  await P.waitForSelector('.rbook');
+  if(!(await P.$('.rbook .rbcov .ncv'))||await P.$('.rbook img.real'))fail('book page should show a made-up cover');
   if(await P.inputValue('[data-f$="|pages"][data-rr]')!=='601')fail('pages not filled from search');
+  // reading session from the book page: a 60 minute nonstop run, ended after an hour
+  await P.click('.rbook [data-sess]');await P.waitForSelector('.modal #rtm');
+  await P.evaluate(()=>{RUN.t0-=61*60000;keepRun()});await P.waitForTimeout(1100);
+  if(!(await P.textContent('.modal')).includes('you did it'))fail('session should say it is done after an hour');
+  await P.click('[data-send]');
+  {const s=await P.evaluate(()=>D.sessions.map(x=>[x.min,x.full,x.nonstop]));if(JSON.stringify(s)!=='[[60,true,true]]')fail('session not saved: '+JSON.stringify(s))}
+  await P.evaluate(()=>go('book/'+D.books[0].id));await P.waitForSelector('.rbook');
   await P.fill('[data-f$="|pg"]','120');await P.press('[data-f$="|pg"]','Enter');
   await P.click('[data-grade$="|Writing|4"]');await P.click('[data-grade$="|Writing|4"]');
   await P.click('[data-grade$="|Plot|3"]');
   if(!(await P.textContent('.avg')).includes('3.5'))fail('quarter average wrong: '+await P.textContent('.avg'));  // (3.75+3)/2=3.375 -> 3.5
   await shot(P,'03-book-page-phone');
-  // book typed by hand gets a cover looked up in the background
+  // book typed by hand
   await P.click('[data-go="reading"]');await P.click('[data-new="book"]');await P.fill('.modal [name=t]','Piranesi');await P.fill('.modal [name=a]','Susanna Clarke');await P.click('.modal .btn.solid');
-  await P.waitForSelector('.bpage img.real',{timeout:4000}).catch(()=>fail('background cover lookup failed'));
+  await P.waitForSelector('.rbook .ncv');
   await P.click('[data-bst$="|read"]');await P.waitForSelector('[data-bst$="|read"][aria-pressed="true"]');await P.click('[data-grade$="|Enjoyment|3"]');await P.waitForSelector('.avg b:text("3.0")');
-  await P.click('[data-go="reading"]');await P.waitForSelector('.gbook .stars',{timeout:5000}).catch(()=>{});
+  await P.click('[data-go="reading"]');await P.click('[data-rtab="lib"]');await P.waitForSelector('.gbook .stars',{timeout:5000}).catch(()=>{});
   const sw=await P.evaluate(()=>{const s=document.querySelector('.gbook .stars');return s&&[s.getBoundingClientRect().width,s.querySelector('i').getBoundingClientRect().width]});
   if(!sw||Math.abs(sw[1]/sw[0]-0.6)>0.05)fail('shelf stars do not match a 3.0 rating: '+sw);
   // Days
@@ -94,7 +101,7 @@ const settle=p=>p.waitForTimeout(1600);
   if(!(await P.$('[data-rhb][aria-pressed="true"]')))fail('rhythm tick not saved');
   await shot(P,'07-today-phone');
   // Goodreads import: this year's reads + currently reading, skipping books already here
-  await P.click('nav [data-go="reading"]');await P.click('[data-new="import"]');await P.setInputFiles('.modal [name=file]',path.join(__dirname,'fixtures/goodreads.csv'));await P.click('.modal .btn.solid');
+  await P.click('nav [data-go="reading"]');await P.click('[data-rtab="lib"]');await P.click('[data-new="import"]');await P.setInputFiles('.modal [name=file]',path.join(__dirname,'fixtures/goodreads.csv'));await P.click('.modal .btn.solid');
   await P.waitForFunction(()=>/Added/.test(document.querySelector('#toast').textContent)).catch(()=>{});
   const imp=await P.evaluate(()=>D.books.map(b=>b.t));
   for(const t of ['The Hunger Games','Middlemarch'])if(!imp.includes(t))fail('import missed '+t);
@@ -169,12 +176,12 @@ const settle=p=>p.waitForTimeout(1600);
   const st=await A.textContent('#savenote');if(!/synced/i.test(st))fail('status says '+st);
   // computer screenshots of each room with the phone-made data
   await A.click('nav [data-go="home"]');await shot(A,'10-today-computer');
-  // Reading shows only three quotes, and "other quotes" picks different ones
+  // Quotes tab: every quote on the wall, "Another one" changes the big quote
   await A.evaluate(()=>{for(let i=0;i<5;i++)D.quotes.push({id:'qq'+i,book:'',text:'Quote number '+i,page:''});save()});
-  await A.click('nav [data-go="reading"]');await A.waitForSelector('[data-qmore]');
-  const q1=await A.$$eval('.quotes article blockquote',a=>a.map(x=>x.textContent));if(q1.length!==3)fail('reading shows '+q1.length+' quotes');
-  await A.click('[data-qmore]');const q2=await A.$$eval('.quotes article blockquote',a=>a.map(x=>x.textContent));
-  if(q2.length!==3||q2.every(x=>q1.includes(x)))fail('other quotes did not change: '+q2);
+  await A.click('nav [data-go="reading"]');await A.click('[data-rtab="quotes"]');await A.waitForSelector('[data-qshuf]');
+  {const n=await A.$$eval('.rqwall .rqc',a=>a.length),all=await A.evaluate(()=>D.quotes.length);if(n!==all)fail('quote wall shows '+n+' of '+all)}
+  const h1=await A.textContent('.rqhero blockquote');const seenQ=new Set([h1]);for(let i=0;i<6;i++){await A.click('[data-qshuf]');seenQ.add(await A.textContent('.rqhero blockquote'))}
+  if(seenQ.size<2)fail('Another one did not change the quote');
   await shot(A,'11-reading-quotes');
   await browser.close();srv.close();
   console.log(process.exitCode?'E2E FAILED':'E2E passed');

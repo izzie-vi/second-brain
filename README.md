@@ -5,7 +5,8 @@ A personal second brain: Today, Reading, Writing, Days, Goals and Journal. It is
 ## How it fits together
 
 - `app/` is the whole site. Plain HTML, CSS and JavaScript, no build step.
-  - `app.js`: the rooms Today, Reading, Writing, Days and Goals (ported from the approved mockup).
+  - `app.js`: the rooms Today, Writing, Days and Goals (ported from the approved mockup), plus shared helpers.
+  - `reading.js` and `reading.css`: the Reading room in oat and sage. Tabs for Now, Library, Challenges, Quotes and Year, the book page, the spin wheel, reading sessions and the made-up covers.
   - `journal.js`: the Journal room, mood and headache on Today, the Monday plan (with goals for the week), On this day, and the monthly wrapped.
   - `remind.js`: turning phone reminders for fixed dates on and off.
   - `sync.js`: saves to the device and syncs with Supabase. Edits made on two devices at once are merged item by item.
@@ -15,7 +16,7 @@ A personal second brain: Today, Reading, Writing, Days, Goals and Journal. It is
 - `app/supabase/schema.sql`: run once in the Supabase SQL editor.
 - `app/supabase/remind/index.ts` and `reminders.sql`: the phone reminders (an Edge Function run every hour). Setup steps: `app/supabase/REMINDERS.md`.
 - Light or dark follows the device setting unless "Light" or "Dark" is picked in the footer (saved per device).
-- Book covers and search come from Open Library (no account needed).
+- Book search comes from Open Library (no account needed). Covers are made up in the app: one of 16 colors and 3 styles, picked from the title.
 - Pushing to `main` publishes the site with GitHub Pages (`.github/workflows/pages.yml`).
 
 ## Setup

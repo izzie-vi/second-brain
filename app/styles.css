@@ -5,14 +5,14 @@
   --serif:"Source Serif 4",Georgia,serif;
   --sans:"Jost","Avenir Next",system-ui,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,monospace;
-  --c-home:#F5F1E8; --c-read:#4E6278; --c-write:#F7F6F2; --c-days:#E9C9C4; --c-goals:#F7EED8; --c-journal:#DDD6EA; --night:#272231;
+  --c-home:#F5F1E8; --c-read:#F3EEE6; --c-write:#F7F6F2; --c-days:#E9C9C4; --c-goals:#F7EED8; --c-journal:#DDD6EA; --night:#272231;
   /* room dots in the menu keep their light colors, also in dark mode */
-  --k-home:#F5F1E8; --k-read:#4E6278; --k-write:#F7F6F2; --k-days:#E9C9C4; --k-goals:#F7EED8; --k-journal:#DDD6EA;
+  --k-home:#F5F1E8; --k-read:#9DB59A; --k-write:#F7F6F2; --k-days:#E9C9C4; --k-goals:#F7EED8; --k-journal:#DDD6EA;
   --bg:var(--c-home); --ink:#24201B; --mute:#857B6E; --line:rgba(36,32,27,.16); --card:#FFFDF8; --acc:#B07F3E; --soft:#EEE7DA;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.5;transition:background .3s,color .3s}
-body[data-room="reading"],.t-read{--bg:var(--c-read);--ink:#FFFFFF;--mute:#C8D2DD;--line:rgba(255,255,255,.22);--card:rgba(255,255,255,.08);--acc:#F2D49B;--soft:rgba(255,255,255,.14)}
+/* the Reading room and its Today tile are styled in reading.css */
 body[data-room="writing"],.t-write{--bg:var(--c-write);--ink:#1D1C1A;--mute:#86827A;--line:rgba(29,28,26,.16);--card:#FFFFFF;--acc:#3E7C62;--soft:#EEECE6}
 body[data-room="days"],.t-days{--bg:var(--c-days);--ink:#262222;--mute:#6F5855;--line:rgba(38,34,34,.22);--card:#F3DAD6;--acc:#262222;--soft:#F1D5D1}
 body[data-room="goals"],.t-goals{--bg:var(--c-goals);--ink:#25231F;--mute:#7B7464;--line:rgba(37,35,31,.16);--card:#FFFCF3;--acc:#4F8A84;--soft:#EFE4C8}
@@ -45,14 +45,12 @@ p{margin:0} h1,h2,h3{margin:0;font-weight:400;text-wrap:balance}
 .link{border:0;background:none;padding:0;color:var(--mute);font-size:.85rem;text-decoration:underline;text-underline-offset:3px}
 .link:hover{color:var(--ink)}
 .link.danger{color:#9B3B2E}
-body[data-room="reading"] .link.danger{color:#F3C3CC}
 .x{border:0;background:none;color:var(--mute);padding:0 4px;font-size:1.1rem;line-height:1;opacity:.55}
 .x:hover{opacity:1;color:var(--ink)}
 .empty{color:var(--mute);font-style:italic;font-family:var(--serif);padding:10px 0}
 .seg{display:inline-flex;background:var(--soft);border-radius:99px;padding:3px;flex-wrap:wrap}
 .seg button{border:0;background:none;border-radius:99px;padding:4px 13px;color:var(--mute);font-size:.88rem}
 .seg button[aria-pressed="true"]{background:var(--card);color:var(--ink);box-shadow:0 0 0 1.5px var(--ink) inset}
-body[data-room="reading"] .seg button[aria-pressed="true"]{background:#fff;color:#1D1C1A;box-shadow:none}
 .row{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}
 .row:last-child{border-bottom:0}
 .tick{appearance:none;width:19px;height:19px;border:1.5px solid var(--ink);border-radius:50%;margin:0;flex:none;cursor:pointer;display:grid;place-items:center;background:none}
@@ -583,9 +581,8 @@ label.link{cursor:pointer}
 
 /* ================= dark ================= */
 html[data-dark]{color-scheme:dark;
-  --c-home:#1E1B17;--c-read:#1F2935;--c-write:#1B1B19;--c-days:#2C2223;--c-goals:#24211A;--c-journal:#221E2A;--night:#16131C;
+  --c-home:#1E1B17;--c-read:#1E2B27;--c-write:#1B1B19;--c-days:#2C2223;--c-goals:#24211A;--c-journal:#221E2A;--night:#16131C;
   --ink:#EDE6DA;--mute:#A39886;--line:rgba(237,230,218,.16);--card:#2A2621;--acc:#D9A962;--soft:#35302A}
-html[data-dark] body[data-room="reading"],html[data-dark] .t-read{--mute:#AFBBC8;--card:rgba(255,255,255,.06);--soft:rgba(255,255,255,.12)}
 html[data-dark] body[data-room="writing"],html[data-dark] .t-write{--ink:#ECEAE4;--mute:#9A968D;--line:rgba(236,234,228,.15);--card:#252522;--acc:#6FB596;--soft:#2F2E2B}
 html[data-dark] body[data-room="days"],html[data-dark] .t-days{--ink:#F1E2DF;--mute:#BFA19D;--line:rgba(241,226,223,.18);--card:#382C2D;--acc:#F1E2DF;--soft:#403233}
 html[data-dark] body[data-room="goals"],html[data-dark] .t-goals{--ink:#F0E8D3;--mute:#ADA48D;--line:rgba(240,232,211,.15);--card:#2F2B22;--acc:#7FC0B8;--soft:#38332A}
