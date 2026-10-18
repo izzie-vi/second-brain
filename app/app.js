@@ -13,10 +13,10 @@ const SUBLVL={year:'quarter',quarter:'month'};
 const lvlOf=p=>p.length===4?'year':p.includes('Q')?'quarter':'month';
 const inPer=(d,p)=>{if(!d)return false;if(p.includes('Q'))return d.slice(0,4)===p.slice(0,4)&&Math.floor((+d.slice(5,7)-1)/3)+1===+p.slice(-1);return d.startsWith(p)};
 const GRADES=['Characters','Writing','Plot','Enjoyment'];
-function blank(){return {shelves:['favorites'],books:[],quotes:[],favs:{},projects:[],notes:[],tasks:[],dates:[],repeats:[],rhythm:[],rlog:{},goals:[],days:{},weeks:{},wraps:{},tlog:{}}}
+function blank(){return {shelves:['favorites'],books:[],quotes:[],favs:{},projects:[],notes:[],tasks:[],dates:[],repeats:[],rhythm:[],rlog:{},goals:[],days:{},weeks:{},wraps:{},tlog:{},challenges:[],wheel:[],sessions:[]}}
 /* fill in anything missing so older or partial data never breaks a page */
 function fix(d){const b=blank();d=d&&typeof d==='object'&&!Array.isArray(d)?d:{};for(const k in b)if(!d[k]||typeof d[k]!=='object'||Array.isArray(d[k])!==Array.isArray(b[k]))d[k]=b[k];
-  d.books.forEach(x=>{x.sh=Array.isArray(x.sh)?x.sh:[];if(!Array.isArray(x.tags)){x.tags=(x.genre||'').split(',').map(t=>t.trim().toLowerCase()).filter(Boolean);delete x.genre}x.grades=x.grades&&typeof x.grades==='object'?x.grades:{}});d.projects.forEach(x=>{x.sessions=Array.isArray(x.sessions)?x.sessions:[];if(!Array.isArray(x.docs)){x.docs=x.file?[{id:'doc'+x.id,name:'Scrivener',url:x.file}]:[];delete x.file}});return d}
+  d.books.forEach(x=>{x.sh=Array.isArray(x.sh)?x.sh:[];if(!Array.isArray(x.tags)){x.tags=(x.genre||'').split(',').map(t=>t.trim().toLowerCase()).filter(Boolean);delete x.genre}x.grades=x.grades&&typeof x.grades==='object'?x.grades:{};x.past=Array.isArray(x.past)?x.past:[];x.log=Array.isArray(x.log)?x.log:[]});d.challenges.forEach(c=>{c.prompts=Array.isArray(c.prompts)?c.prompts:[]});d.projects.forEach(x=>{x.sessions=Array.isArray(x.sessions)?x.sessions:[];if(!Array.isArray(x.docs)){x.docs=x.file?[{id:'doc'+x.id,name:'Scrivener',url:x.file}]:[];delete x.file}});return d}
 let D=fix(Store.load());
 /* ---------- repeating tasks and dates ---------- */
 const dOf=s=>new Date(s+'T12:00:00');
@@ -79,14 +79,7 @@ const hash=s=>{let h=7;for(const c of s)h=(h*31+c.charCodeAt(0))>>>0;return h};
 /* made-up covers: picked from the title (and a "look" number you can change), so they stay the same on every device */
 const CPAL=[['#4E6278','#F2D49B','#FFFFFF'],['#E9C9C4','#7A3B3B','#2A1E1E'],['#3E7C62','#F3E6C8','#F7F2E6'],['#F2D49B','#4E6278','#2A2418'],['#B07F3E','#F6E9D2','#FFF8EC'],['#2F3A4A','#D98E6A','#F1E8DA'],['#D5E2D0','#3E6B4E','#1F2A22'],['#E3D3EE','#6A4C7A','#251C2B'],['#7A3B3B','#F1C9B0','#FBEFE6'],['#CDE7E3','#2F6F68','#16302D'],['#F3D7C2','#C46A4A','#3A2118'],['#1F2A22','#C9A36A','#EDE6D6']];
 const seedOf=x=>hash((x.t||'')+'|'+(x.look||0));
-function cover(b){
-  const h=seedOf(b),[g,a,i]=CPAL[h%CPAL.length],T=esc(b.t),A=esc(b.a);
-  const inner=(h>>5)%2
-   ?`<div class="cv-pb" style="background:${g}"><span class="pbtop"><i></i></span><span class="pbmid"><span class="ct">${T}</span></span><span class="pbbot" style="color:${i}"><span class="ca">${A}</span></span></div>`
-   :`<div class="cv-mb" style="background:${Array.from({length:7},(_,k)=>`radial-gradient(ellipse ${30+k*6}% ${18+k*4}% at ${(h>>(k*3))%100}% ${(h>>(k*2+1))%100}%, ${k%2?a:g} 0 40%, transparent 41%)`).join(',')},repeating-radial-gradient(circle at ${h%100}% ${(h>>5)%100}%, ${g} 0 6cqw, ${a} 6cqw 9cqw, ${g} 9cqw 15cqw)"><span class="mblabel"><span class="ct">${T}</span><span class="ca">${A}</span></span></div>`;
-  const img=b.cover&&b.cover!=='none'?`<img class="real" src="${esc(b.cover)}" alt="" loading="lazy" onerror="this.remove()">`:'';
-  return `<div class="cover" aria-hidden="true">${inner}${img}</div>`;
-}
+/* book covers: cover() is in reading.js */
 /* real covers from Open Library (free, no account) */
 const OL='https://openlibrary.org/search.json';
 const olCover=i=>i?`https://covers.openlibrary.org/b/id/${i}-L.jpg`:'';
@@ -212,135 +205,7 @@ function vHome(){
   </div>`;
 }
 
-/* ================= reading ================= */
-/* books read in a month: finished that month, or open and started by then (plus the one already picked) */
-const readIn=(ym,keep)=>D.books.filter(b=>b.id===keep||(b.st==='read'&&(b.end||'').startsWith(ym))||(b.st==='reading'&&(b.start||'').slice(0,7)<=ym));
-function vReading(){
-  const open=D.books.filter(b=>b.st==='reading');
-  const g=D.goals.find(x=>x.kind==='number'&&x.auto&&x.per===Y);
-  const n=g?gval(g):0;
-  const F=U.filter;
-  const R=U.rf,q=U.rq.trim().toLowerCase();
-  const lib=D.books.filter(b=>(F==='all'||b.st===F)&&(!U.shelf||b.sh.includes(U.shelf))&&(!R.year||(R.year==='none'?!b.end:(b.end||'').startsWith(R.year)))
-    &&(!R.tag||(b.tags||[]).includes(R.tag))&&(!R.rate||(R.rate==='none'?!avg(b):avg(b)>=+R.rate))&&(!R.fmt||b.fmt===R.fmt)&&(!q||(b.t+' '+b.a).toLowerCase().includes(q)))
-    .sort(SORTS[R.sort||'recent'][1]);
-  const years=[...new Set(D.books.map(b=>(b.end||'').slice(0,4)).filter(Boolean))].sort().reverse();
-  const tags=[...new Set(D.books.flatMap(b=>b.tags||[]))].sort();
-  const sel=(k,l,opts)=>`<select class="pselect" data-rf="${k}" aria-label="${l}"><option value="">${l}</option>${opts.map(([v,t])=>`<option value="${esc(v)}" ${R[k]===v?'selected':''}>${esc(t)}</option>`).join('')}</select>`;
-  const any=R.year||R.tag||R.rate||R.fmt||q||U.shelf||F!=='all';
-  const fv=D.favs[YM]||{};
-  const pastM=Object.keys(D.favs).filter(k=>k<YM).sort().reverse();
-  const opts=readIn(YM,fv.book);
-  return `<section class="head rtop"><div style="display:flex;flex-direction:column;gap:8px"><h1 style="font-family:var(--display);font-size:clamp(3rem,8vw,5.2rem);line-height:.95">Reading</h1></div>
-   ${g?`<button class="ring" style="--p:${pct(n,g.target)}" data-go="goals" title="Your reading goal, also in Goals"><span><span><b>${n}</b><span class="label">of ${g.target} this year</span></span></span></button>`:`<button class="btn" data-new="goal|books">Set a reading goal</button>`}</section>
-  <section class="sec"><div class="sh"><h2>Currently reading</h2><div class="acts">${D.books.some(b=>b.st==='want')?'<button class="btn" data-pickme>Pick for me</button>':''}<button class="btn" data-new="book">+ Book</button></div></div>
-   <div class="now">${open.map(b=>{const pr=progress(b);return `<button class="nowcard" data-go="book/${b.id}"><span>${cover(b)}</span><span style="display:flex;flex-direction:column;gap:6px;min-width:0"><span class="bt">${esc(b.t)}</span><span style="color:var(--mute)">${esc(b.a)}</span>${pr!==null?`<span class="bar"><i style="width:${pr}%"></i></span>`:''}<span class="label">${progTxt(b)} · ${esc(b.fmt.toLowerCase())}${b.start?' · since '+nice(b.start):''}</span></span></button>`}).join('')||'<p class="empty">Nothing open. Start something from your shelves.</p>'}</div></section>
-  <section class="sec"><div class="sh"><h2>${monthName(YM)} favorites</h2></div>
-   <div class="favs">
-    <div class="fav"><span class="label">Book of the month</span><select data-fav="book" aria-label="Book of the month"><option value="">Pick one…</option>${opts.map(b=>`<option value="${b.id}" ${fv.book===b.id?'selected':''}>${esc(b.t)}</option>`).join('')}</select></div>
-    <div class="fav"><span class="label">Character of the month</span><input class="inl" data-fav="character" value="${esc(fv.character||'')}" placeholder="Who stuck with you?"></div>
-    <div class="fav"><span class="label">Line of the month</span><input class="inl" data-fav="line" value="${esc(fv.line||'')}" placeholder="A line you keep thinking about"></div>
-   </div>
-   ${pastM.length?`<div class="past">${pastM.map(k=>{const f=D.favs[k],b=byId(D.books,f.book);return `<span class="label"><b style="color:var(--ink);font-weight:500">${monthName(k)}:</b> ${[b?esc(b.t):'',f.character?esc(f.character):''].filter(Boolean).join(' · ')}</span>`}).join('')}</div>`:''}</section>
-  <section class="sec"><div class="sh"><h2>Shelves</h2><div class="acts"><span class="label">${lib.length} book${lib.length===1?'':'s'}</span><button class="link" data-new="import">Import from Goodreads</button></div></div>
-   <div class="tabs" role="group" aria-label="Status">${[['all','All'],...Object.entries(ST).map(([k,v])=>[k,v[0]])].map(([k,l])=>`<button data-filter="${k}" aria-pressed="${F===k}">${l}</button>`).join('')}</div>
-   <div class="tabs" role="group" aria-label="Shelf">${D.shelves.map(s=>`<button data-shelf="${esc(s)}" aria-pressed="${U.shelf===s}">${esc(s)}</button>`).join('')}<button class="dash" data-new="shelf">+ shelf</button>${D.shelves.length?`<button class="link" data-new="shelves">edit shelves</button>`:''}</div>
-   <div class="rfilters"><input type="search" class="form-in" data-rq placeholder="Search title or author" value="${esc(U.rq)}" aria-label="Search">
-    ${sel('year','Any year',[...years.map(y=>[y,'Finished in '+y]),['none','No finish date']])}
-    ${tags.length?sel('tag','Any tag',tags.map(t=>[t,t])):''}
-    ${sel('rate','Any rating',[['5','5 stars'],['4','4 stars and up'],['3','3 stars and up'],['none','Not rated']])}
-    ${sel('fmt','Any format',[['Physical','Physical'],['Ebook','Ebook'],['Audiobook','Audiobook']])}
-    <select class="pselect" data-rf="sort" aria-label="Sort">${Object.entries(SORTS).map(([k,[l]])=>`<option value="${k}" ${(R.sort||'recent')===k?'selected':''}>Sort: ${l}</option>`).join('')}</select>
-    ${any?`<button class="link" data-rclear>clear filters</button>`:''}</div>
-   <div class="grid">${lib.map(b=>`<button class="gbook" data-go="book/${b.id}">${cover(b)}<span class="bt">${esc(b.t)}</span><span class="ba">${esc(b.a)}</span>${b.st==='read'?starsOf(avg(b)):`<span class="st ${ST[b.st][1]}">${ST[b.st][0]}</span>`}</button>`).join('')||'<p class="empty">No books here yet.</p>'}</div></section>
-  <section class="sec"><div class="sh"><h2>Copied out</h2><div class="acts">${D.quotes.length>3?`<button class="link" data-qmore>other quotes</button>`:''}<button class="btn" data-new="quote">+ Quote</button></div></div>
-   <div class="quotes">${threeQuotes().map(q=>{const b=byId(D.books,q.book);return `<article><blockquote>“${esc(q.text)}”</blockquote><div class="qa">${b?`<button class="link" data-go="book/${b.id}">${esc(b.t)}</button>`:'<span class="label">Unknown book</span>'}${q.page?`<span class="label">p. ${esc(q.page)}</span>`:''}<button class="link" data-edit="quote|${q.id}">edit</button></div></article>`}).join('')||'<p class="empty">No quotes yet.</p>'}</div></section>
-  ${readingStats(years)}`;
-}
-/* ---------- the year in reading ---------- */
-function readingStats(years){
-  if(!years.length)return '';
-  const yr=years.includes(U.ry)?U.ry:years.includes(Y)?Y:years[0];
-  const bs=D.books.filter(b=>b.st==='read'&&(b.end||'').startsWith(yr));
-  const pages=bs.reduce((m,b)=>m+(+b.pages||0),0),rated=bs.filter(b=>avg(b)),ar=rated.length?rated.reduce((m,b)=>m+avg(b),0)/rated.length:0;
-  const per=Array.from({length:12},(_,i)=>bs.filter(b=>+b.end.slice(5,7)===i+1).length),top=Math.max(1,...per);
-  const tc={};bs.forEach(b=>(b.tags||[]).forEach(t=>tc[t]=(tc[t]||0)+1));const tags=Object.keys(tc).sort((a,b)=>tc[b]-tc[a]||a.localeCompare(b)).slice(0,3);
-  const fc={};bs.forEach(b=>fc[b.fmt]=(fc[b.fmt]||0)+1);
-  const paged=bs.filter(b=>+b.pages).sort((a,b)=>b.pages-a.pages),best=[...rated].sort((a,b)=>avg(b)-avg(a))[0],again=bs.filter(b=>(b.times||0)>1).length;
-  const fact=(l,t,sub)=>t?`<div><span class="label">${l}</span><span class="t">${t}</span>${sub?`<span class="label">${sub}</span>`:''}</div>`:'';
-  return `<section class="sec"><div class="sh"><h2>${yr} in reading</h2>${years.length>1?`<div class="chips" role="group" aria-label="Year">${years.slice(0,5).map(y=>`<button data-ry="${y}" aria-pressed="${y===yr}">${y}</button>`).join('')}</div>`:''}</div>
-   <div class="rstats">
-    <div class="rnums"><div><b>${bs.length}</b><span class="label">${bs.length===1?'book':'books'} finished</span></div>${pages?`<div><b>${fmt(pages)}</b><span class="label">pages</span></div>`:''}${ar?`<div><b>${qfmt(Math.round(ar*4)/4)}</b><span class="label">average stars</span></div>`:''}${paged.length?`<div><b>${fmt(Math.round(paged.reduce((m,b)=>m+ +b.pages,0)/paged.length))}</b><span class="label">pages per book</span></div>`:''}</div>
-    <div class="mbars" role="img" aria-label="Books finished each month: ${per.map((n,i)=>MONTHS[i]+' '+n).join(', ')}">${per.map((n,i)=>`<div title="${MONTHS[i]}: ${n} ${n===1?'book':'books'}"><span class="n">${n||''}</span><i class="${n?'':'z'}" style="height:${n?Math.max(6,n/top*90):2}px"></i><span class="m">${MONTHS[i][0]}</span></div>`).join('')}</div>
-    <div class="rfacts">
-     ${fact('top tags',tags.map(t=>`${esc(t)} <span class="label">${tc[t]}</span>`).join(' · '))}
-     ${fact('formats',Object.keys(fc).map(k=>`${fc[k]} ${esc(k.toLowerCase())}`).join(' · '))}
-     ${best?fact('highest rated',esc(best.t),qfmt(avg(best))+' ★'):''}
-     ${paged.length?fact('longest',esc(paged[0].t),fmt(paged[0].pages)+' pages'):''}
-     ${paged.length>1?fact('shortest',esc(paged[paged.length-1].t),fmt(paged[paged.length-1].pages)+' pages'):''}
-     ${again?fact('read again',again===1?'1 book':again+' books'):''}
-    </div></div></section>`;
-}
-/* ---------- pick for me: one random book from To read ---------- */
-function pickPool(){
-  const P=U.pk;let pool=D.books.map((b,i)=>({b,i})).filter(({b})=>b.st==='want'&&(!P.tag||(b.tags||[]).includes(P.tag))&&(!P.short||(+b.pages&&+b.pages<300)));
-  if(P.old)pool=pool.sort((x,y)=>(x.b.added||'').localeCompare(y.b.added||'')||x.i-y.i).slice(0,10);
-  return pool.map(x=>x.b);
-}
-function rePick(){const pool=pickPool();let c=pool.filter(b=>b.id!==U.pk.id);if(!c.length)c=pool;U.pk.id=c.length?c[Math.floor(Math.random()*c.length)].id:null}
-function openPick(){
-  U.pk=U.pk||{tag:'',short:false,old:false,id:null};if(!byId(D.books,U.pk.id)||byId(D.books,U.pk.id).st!=='want')rePick();
-  const b=byId(D.books,U.pk.id),tags=[...new Set(D.books.filter(x=>x.st==='want').flatMap(x=>x.tags||[]))].sort(),n=pickPool().length;
-  const inner=`<h2>Pick for me</h2>
-   <div class="pickopts">${tags.length?`<select class="pselect" data-pk="tag" aria-label="Tag" ><option value="">Any tag</option>${tags.map(t=>`<option value="${esc(t)}" ${U.pk.tag===t?'selected':''}>${esc(t)}</option>`).join('')}</select>`:''}
-    <label><input type="checkbox" data-pk="short" ${U.pk.short?'checked':''}> Short, under 300 pages</label><label><input type="checkbox" data-pk="old" ${U.pk.old?'checked':''}> Oldest on the list</label></div>
-   ${b?`<div class="pickme"><button class="link" data-pkopen="${b.id}" style="text-decoration:none">${cover(b)}</button><div style="display:flex;flex-direction:column;gap:4px"><b>${esc(b.t)}</b><span>${esc(b.a)}</span><span class="hint">${[b.pages?b.pages+' pages':'',(b.tags||[]).join(', ')].filter(Boolean).join(' · ')}</span><span class="hint">one of ${n} on your To read list${U.pk.tag||U.pk.short||U.pk.old?' that match':''}</span></div></div>`
-     :`<p class="hint">Nothing on your To read list matches.${U.pk.short?' Books without a page count are left out of short reads.':''}</p>`}
-   <div class="bar2">${b?`<button class="btn solid" data-pkstart="${b.id}">Start reading</button>${n>1?'<button class="btn" data-pkagain>Another one</button>':''}`:''}<button class="btn" data-close>Close</button></div>`;
-  /* already open: swap the inside only, so it doesn't fade in again on every pick */
-  const open=U.pop&&U.pop.kind==='pickme'&&document.querySelector('#layer .modal');
-  if(open){open.innerHTML=inner;return}
-  U.pop={kind:'pickme'};
-  document.getElementById('layer').innerHTML=`<div class="scrim" data-scrim><div class="modal" role="dialog" aria-modal="true" aria-label="Pick for me">${inner}</div></div>`;
-}
-
-function pBook(b){
-  const a=avg(b),qs=D.quotes.filter(q=>q.book===b.id),pr=progress(b);
-  return `<button class="back" data-go="reading">← Reading</button>
-  <div class="bpage">
-   <aside><div>${cover(b)}<div class="coverlinks"><button class="link" data-findcover="${b.id}">${b.cover&&b.cover!=='none'?'Other cover':'Find cover'}</button><button class="link" data-linkcover="${b.id}">Image link</button>${!b.cover||b.cover==='none'?`<button class="link" data-look="books|${b.id}">Other look</button>`:''}${b.cover&&b.cover!=='none'?`<button class="link" data-nocover="${b.id}">No cover</button>`:''}</div></div>
-    <div style="display:flex;flex-direction:column;gap:10px">
-     <div class="tabs" role="group" aria-label="Status" style="gap:5px">${Object.entries(ST).map(([k,v])=>`<button data-bst="${b.id}|${k}" aria-pressed="${b.st===k}">${v[0]}</button>`).join('')}</div>
-     ${b.st!=='read'?`<button class="btn" style="border-color:#fff;align-self:flex-start" data-finish="${b.id}">Mark finished</button>`:''}
-    </div></aside>
-   <div style="display:flex;flex-direction:column;gap:22px;min-width:0">
-    <div>${inlT('books',b,'t','Title')}${inl('books',b,'a','Author','ser','style="color:var(--mute);margin-top:4px"')}
-     ${a?`<div style="margin-top:8px;display:flex;gap:10px;align-items:center">${starsOf(a)}<span class="label">${qfmt(a)} average</span></div>`:''}</div>
-    ${['reading','paused','dnf'].includes(b.st)?`<div class="box"><h3>Progress</h3>
-     <div class="seg" role="group" aria-label="Track progress by" style="align-self:flex-start">${[['pages','Pages'],['pct','Percent'],['none','Don\'t track']].map(([k,l])=>`<button data-pmode="${b.id}|${k}" aria-pressed="${b.pmode===k}">${l}</button>`).join('')}</div>
-     ${b.pmode==='pages'?`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">On page ${inlN('books',b,'pg','Current page')} of ${inlN('books',b,'pages','Page count')}</div>`:b.pmode==='pct'?`<div style="display:flex;gap:8px;align-items:center">${inlN('books',b,'pct','Percent')} % through</div>`:''}
-     ${pr!==null?`<div class="bar" style="height:6px"><i style="width:${pr}%"></i></div>`:''}</div>`:''}
-    <dl class="facts">
-     <dt>Started</dt><dd><input type="date" data-f="books|${b.id}|start" value="${esc(b.start)}" aria-label="Date started"></dd>
-     <dt>Finished</dt><dd><input type="date" data-f="books|${b.id}|end" value="${esc(b.end)}" aria-label="Date finished"></dd>
-     <dt>Times read</dt><dd><span class="stepper"><button data-times="${b.id}|-1" aria-label="One less">−</button><b style="min-width:26px;text-align:center">${b.times||0}</b><button data-times="${b.id}|1" aria-label="One more">+</button></span></dd>
-     <dt>Pages</dt><dd>${inlN('books',b,'pages','Page count',false)}</dd>
-     <dt>Tags</dt><dd>${(b.tags||[]).map(t=>`<span class="chip tagchip">${esc(t)}<button class="x" data-untag="${b.id}|${esc(t)}" aria-label="Remove ${esc(t)}">×</button></span>`).join('')}<form class="tagadd" data-form="tag|${b.id}"><input name="t" list="taglist" placeholder="+ tag" aria-label="Add a tag"></form><datalist id="taglist">${[...new Set(D.books.flatMap(x=>x.tags||[]))].map(t=>`<option value="${esc(t)}">`).join('')}</datalist></dd>
-     <dt>Format</dt><dd><select data-f="books|${b.id}|fmt" aria-label="Format">${['Physical','Ebook','Audiobook'].map(o=>`<option ${b.fmt===o?'selected':''}>${o}</option>`).join('')}</select></dd>
-     <dt>Shelves</dt><dd>${D.shelves.map(s=>`<button class="chip" style="border:0;${b.sh.includes(s)?'background:#fff;color:#1D1C1A':''}" data-bsh="${b.id}|${esc(s)}" aria-pressed="${b.sh.includes(s)}">${esc(s)}</button>`).join('')}<button class="chip" style="border:0" data-new="shelf|${b.id}">+ shelf</button></dd>
-    </dl>
-    <div class="box"><h3>Your grades</h3>
-     <div class="grades">${GRADES.map(k=>{const v=b.grades[k]||0;return `<b>${k}</b><span class="pick5">${[1,2,3,4,5].map(n=>`<button aria-label="${k} ${n} stars" data-grade="${b.id}|${k}|${n}"><i style="width:${Math.max(0,Math.min(1,v-n+1))*100}%">★</i>★</button>`).join('')}<span class="gv">${v?qfmt(v):''}</span></span>`}).join('')}</div>
-     <div class="avg"><b>${a?qfmt(a):'–'}</b><span class="label">${a?'average of '+Object.values(b.grades).filter(Boolean).length+' grades':'no grades yet'}</span></div></div>
-    ${b.st==='dnf'?`<div class="box"><h3>Why I stopped</h3>${inlA('books',b,'why','A line about why you put it down',2)}</div>`:''}
-    <div class="box"><h3>Review</h3>${inlA('books',b,'review','Write what you thought. As long or short as you like.',5)}</div>
-    <div class="box"><h3>Quotes</h3>
-     ${qs.map(q=>`<div class="qitem"><p>“${esc(q.text)}”</p><button class="x" data-del="quote|${q.id}" aria-label="Delete quote">×</button>${q.page?`<span class="label">p. ${esc(q.page)}</span>`:''}</div>`).join('')||'<p class="label">None yet.</p>'}
-     <form class="addq" data-form="quote|${b.id}"><textarea name="text" rows="2" placeholder="Copy a line out…" aria-label="Quote"></textarea><input name="page" placeholder="page" aria-label="Page"><button class="btn" style="border-color:#fff">Add</button></form></div>
-    <div class="box"><h3>Notes</h3>${inlA('books',b,'notes','Anything else: who recommended it, what to look up, thoughts while reading.',3)}</div>
-    <button class="link danger" style="align-self:flex-start" data-del="book|${b.id}">Delete this book</button>
-   </div></div>`;
-}
+/* ================= reading: see reading.js ================= */
 
 /* ================= writing ================= */
 function board(cards,ref){
@@ -519,8 +384,6 @@ function importGoodreads(txt,which){
       cover:isbn?`https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg?default=false`:''};
     D.books.push(b);added++;if(!isbn)noIsbn.push(b);
   }
-  /* look up covers for books without an ISBN, one at a time so Open Library isn't flooded */
-  (async()=>{for(const b of noIsbn){await findCover(b);await new Promise(r=>setTimeout(r,300))}if(noIsbn.length)render()})();
   return {added,skipped};
 }
 
@@ -575,7 +438,7 @@ function applyPop(f){
   if(kind==='shelves'){const dels=[].concat(v.del||[]).map(Number),map={};const next=[];
     D.shelves.forEach((x,i)=>{if(dels.includes(i)){map[x]=null;return}const n=T(v['s'+i]).toLowerCase()||x;map[x]=n;if(!next.includes(n))next.push(n)});
     D.shelves=next;D.books.forEach(b=>{b.sh=[...new Set(b.sh.map(x=>x in map?map[x]:x).filter(Boolean))]});if(U.shelf&&!(U.shelf in map&&map[U.shelf]))U.shelf='';else if(U.shelf)U.shelf=map[U.shelf];toast('Shelves saved');return close()}
-  if(kind==='book'){if(!T(v.a)&&!T(v.t))return;const ol=U.pop.ol&&U.pop.ol.title===T(v.t)?U.pop.ol:null;const b={id:id(),t:T(v.t)||'Untitled',a:T(v.a),st:v.st,fmt:'Physical',sh:[],own:'Own it',times:0,grades:{},review:'',notes:'',tags:[],added:TODAY,pages:ol&&ol.pages||'',pmode:'pages',pg:'',pct:'',start:v.st==='reading'?TODAY:'',end:'',cover:ol&&ol.cover||''};D.books.push(b);close(false);toast('Added');if(!b.cover)findCover(b).then(ok=>{if(ok)render()});return go('book/'+b.id)}
+  if(kind==='book'){if(!T(v.a)&&!T(v.t))return;const ol=U.pop.ol&&U.pop.ol.title===T(v.t)?U.pop.ol:null;const b={id:id(),t:T(v.t)||'Untitled',a:T(v.a),st:v.st,fmt:'Physical',sh:[],own:'Own it',times:0,grades:{},review:'',notes:'',tags:[],added:TODAY,pages:ol&&ol.pages||'',pmode:'pages',pg:'',pct:'',start:v.st==='reading'?TODAY:'',end:'',cover:ol&&ol.cover||''};D.books.push(b);close(false);toast('Added');return go('book/'+b.id)}
   if(kind==='doc'){const p=byId(D.projects,U.pop.proj);if(!p||!T(v.url))return;p.docs=p.docs||[];if(isNew)p.docs.push({id:id(),name:T(v.name)||'Document',url:T(v.url)});else Object.assign(byId(p.docs,oid)||{},{name:T(v.name)||'Document',url:T(v.url)});return close()}
   if(kind==='import'){const file=f.file.files[0];if(!file)return;file.text().then(txt=>{const r=importGoodreads(txt,v.which);close();toast(r.added?`Added ${r.added} book${r.added>1?'s':''}${r.skipped?`, skipped ${r.skipped} already here`:''}`:r.error||'No new books found in that file')}).catch(()=>toast('Couldn\'t read that file'));return}
   if(kind==='cover'){const b=byId(D.books,oid);if(b)b.cover=T(v.cover)||'none';return close()}
@@ -640,10 +503,6 @@ document.addEventListener('click',e=>{
   if(d.newdoc){pop('doc',{name:'',url:''},true);U.pop.proj=d.newdoc;return}
   if(d.editdoc){const [pi,di]=d.editdoc.split('|');pop('doc',byId(byId(D.projects,pi).docs,di),false);U.pop.proj=pi;return}
   if(d.opendoc){const [pi,di]=d.opendoc.split('|');const p=byId(D.projects,pi),x=byId(p.docs,di);p.opened=TODAY;save();if(/^https?:/i.test(x.url))window.open(x.url,'_blank','noopener');else location.href=x.url;return}
-  if('pickme' in d){U.pk=null;openPick();return}
-  if('pkagain' in d){rePick();openPick();return}
-  if(d.pkopen){close(false);go('book/'+d.pkopen);return}
-  if(d.pkstart){const b=byId(D.books,d.pkstart);b.st='reading';if(!b.start)b.start=TODAY;close(false);toast(`Started ${b.t}`);go('book/'+b.id);return}
   if(d.theme){try{if(d.theme==='auto')localStorage.removeItem('sb-theme');else localStorage.setItem('sb-theme',d.theme)}catch(_){}window.applyTheme&&applyTheme();render();return}
   if('qmore' in d){const old=U.q3||[],rest=D.quotes.map(q=>q.id).filter(i=>!old.includes(i)).sort(()=>Math.random()-.5);U.q3=[...rest,...old].slice(0,3);render();return}
   if('shuffle' in d){const n=quotePool().length;if(n>1){let k;do{k=Math.floor(Math.random()*n)}while(k===U.qi);U.qi=k}}
@@ -688,7 +547,6 @@ document.addEventListener('change',e=>{
   const x=e.target,d=x.dataset;
   if(x.name==='how'&&x.closest('.modal')){x.form.querySelector('[data-for=week]').hidden=x.value==='month';x.form.querySelector('[data-for=month]').hidden=x.value!=='month';return}
   if(d.rf){U.rf={...U.rf,[d.rf]:x.value};render();return}
-  if(d.pk){U.pk[d.pk]=x.type==='checkbox'?x.checked:x.value;rePick();openPick();return}
   if(d.f){const [c,i,f]=d.f.split('|');const o=byId(D[c],i);if(!o)return;let v='num' in d?(x.value===''?'':Math.max(0,Number(x.value))):x.value;if(f==='t'&&typeof v==='string'&&!v.trim()){x.value=o.t;return}o[f]=v;save();if('rr' in d||x.tagName==='SELECT'||x.type==='date')setTimeout(render,0);return}
   if(d.fav){D.favs[YM]=D.favs[YM]||{};D.favs[YM][d.fav]=x.value;save();return}
   if(d.gstept){const [i,n]=d.gstept.split('|');const st=byId(D.goals,i).steps[+n];st.t=x.value;const c=st.child&&byId(D.goals,st.child);if(c)c.t=x.value;save();return}

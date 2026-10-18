@@ -96,25 +96,32 @@ const at=async(p,day,h='08:00')=>{await p.clock.setFixedTime(new Date(`${day}T${
       {id:'r2',t:'Piranesi',a:'Susanna Clarke',st:'read',end:'2026-03-20',pages:245,grades:{Enjoyment:4},tags:['myth','fantasy'],fmt:'Physical',sh:[],times:2},
       {id:'r3',t:'Persuasion',a:'Jane Austen',st:'read',end:'2025-07-01',pages:249,grades:{},tags:[],fmt:'Physical',sh:[]},
       {id:'d1',t:'Ulysses',a:'James Joyce',st:'dnf',fmt:'Physical',sh:[],tags:[],grades:{}});save()});
-  await P.click('nav [data-go="reading"]');await P.click('[data-pickme]');await P.waitForSelector('.modal .pickme');
-  await P.check('.modal [data-pk="short"]');
-  for(let i=0;i<4;i++){if(!(await P.textContent('.modal .pickme b')).includes('Short one'))fail('short filter picked '+await P.textContent('.modal .pickme b'))}
-  await P.uncheck('.modal [data-pk="short"]');await P.selectOption('.modal [data-pk="tag"]','fantasy');
-  if(!(await P.textContent('.modal .pickme b')).includes('Long one'))fail('tag filter wrong');
-  await P.selectOption('.modal [data-pk="tag"]','');
-  const seen=new Set();for(let i=0;i<12;i++){seen.add(await P.textContent('.modal .pickme b'));await P.click('[data-pkagain]')}
-  if(seen.size<3)fail('Another one does not move through the list: '+[...seen]);
-  await P.waitForTimeout(500);await shot(P,'04-pick-phone',false);
-  const pk=await P.textContent('.modal .pickme b');await P.click('[data-pkstart]');await P.waitForSelector('.bpage');
-  if(await P.evaluate(t=>D.books.find(b=>b.t===t).st,pk)!=='reading')fail('Start reading did not start it');
+  /* spin the wheel: fills itself from To read, lands on a wheel book, Start it starts it */
+  await P.click('nav [data-go="reading"]');await P.click('[data-wheel]');await P.waitForSelector('.modal .rwheel');
+  if(await P.$$eval('.modal [data-tw][aria-pressed="true"]',a=>a.length)!==3)fail('wheel should start with the To read books');
+  await P.click('.modal [data-tw]');if(await P.evaluate(()=>D.wheel.length)!==2)fail('tapping a chip should take it off the wheel');
+  await P.click('.modal [data-spin]');await P.waitForSelector('.modal [data-wstart]',{timeout:6000});
+  await shot(P,'04-wheel-phone',false);
+  const pk=await P.evaluate(()=>byId(D.books,U.wland).t);if(!(await P.evaluate(()=>D.wheel.includes(U.wland))))fail('landed on a book not on the wheel');
+  await P.click('.modal [data-wstart]');await P.waitForSelector('.rbook');
+  if(await P.evaluate(t=>D.books.find(b=>b.t===t).st,pk)!=='reading')fail('Start it did not start it');
+  if(await P.evaluate(t=>D.wheel.includes(D.books.find(b=>b.t===t).id),pk))fail('started book should leave the wheel');
+  /* reread: Read it again keeps the first read as a past read */
+  await P.evaluate(()=>go('book/r2'));await P.click('[data-again]');
+  {const r=await P.evaluate(()=>{const b=byId(D.books,'r2');return [b.st,b.past.length,b.past[0].end,b.start]});if(JSON.stringify(r)!==JSON.stringify(['reading',1,'2026-03-20','2026-10-12']))fail('read it again: '+JSON.stringify(r))}
+  await P.evaluate(()=>{const b=byId(D.books,'r2');b.st='read';b.start='';b.end='2026-03-20';b.past=[];b.rr=false;save()});
+  /* challenges: tick a prompt with a book */
+  await P.evaluate(()=>go('reading'));await P.click('[data-rtab="chal"]');await P.click('[data-chp]');await P.waitForSelector('.modal [data-chset]');
+  await P.click('.modal [data-chset]');if(!(await P.evaluate(()=>D.challenges.some(c=>c.prompts.some(p=>p.book)))))fail('prompt not ticked');
+  await shot(P,'04b-challenges-phone');
   await P.evaluate(()=>go('book/d1'));await P.waitForSelector('[data-f="books|d1|why"]');
   await P.fill('[data-f="books|d1|why"]','Too slow for now.');await P.press('[data-f="books|d1|why"]','Tab');
   if(await P.evaluate(()=>byId(D.books,'d1').why)!=='Too slow for now.')fail('DNF reason not saved');
-  await P.click('[data-go="reading"]');
-  const rs=await P.textContent('.rstats');
-  for(const w of ['2','638','pages','4.5','myth','highest rated','Circe','read again'])if(!rs.includes(w))fail('stats missing '+w+': '+rs.slice(0,200));
-  if((await P.$$('.mbars > div')).length!==12)fail('month bars missing');
-  await P.click('[data-ry="2025"]');if(!(await P.textContent('.rstats')).includes('Persuasion')&&!(await P.textContent('.sec h2:has-text("in reading")')).includes('2025'))fail('year switch');
+  await P.click('[data-go="reading"]');await P.click('[data-rtab="year"]');
+  const rs=await P.textContent('.rd');
+  for(const w of ['638','pages','4.5','myth','highest rated','Circe','rereads'])if(!rs.includes(w))fail('stats missing '+w+': '+rs.slice(0,300));
+  if((await P.$$('.rbars > div')).length!==12)fail('month bars missing');
+  await P.click('[data-ry="2025"]');if(!(await P.textContent('.rd')).includes('Persuasion')||!(await P.textContent('.rsec h2')).includes('2025'))fail('year switch');
   await P.click('[data-ry="2026"]');
   await shot(P,'05-reading-stats-phone');
 
