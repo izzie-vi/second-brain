@@ -152,7 +152,7 @@ function route(){
   if(a==='wrap'&&isYM(b)&&b<YM)return {room:'journal',view:()=>pWrapQ(b)};
   if(a==='wrapped'&&(isYM(b)&&b<YM||/^\d{4}$/.test(b||'')&&b<=Y))return {room:'wrapped',view:()=>pWrapped(b)};
   const r=ROOMS.find(x=>x[0]===a)?a:'home';
-  return {room:r,view:{home:vHome,reading:vReading,writing:vWriting,days:vDays,goals:vGoals,journal:vJournal}[r]};
+  return {room:r,view:{home:()=>vHome(),reading:()=>vReading(),writing:()=>vWriting(),days:()=>vDays(),goals:()=>vGoals(),journal:()=>vJournal()}[r]};
 }
 function go(h){if((location.hash.slice(1)||'home')===h)render();else location.hash=h}
 function head(title){return `<section class="head"><h1>${title}</h1></section>`}
@@ -471,7 +471,19 @@ function close(r=true){U.pop=null;document.getElementById('layer').innerHTML='';
 
 /* ================= render & events ================= */
 let shownDay=TODAY;
-function render(){
+/* if a page can't be drawn, say so instead of going blank, with a way to reload fresh files */
+function oops(err){
+  console.error(err);
+  const m=document.getElementById('main');if(!m)return;
+  m.innerHTML=`<section class="sec oops"><h2>Something went wrong showing this page</h2><p class="hint">Your notes are safe. Tap below to load the newest version of the app.</p><p><button class="btn solid" data-fresh>Reload the app</button></p><p class="small">${esc(String(err&&err.message||err))}</p></section>`;
+}
+async function fresh(){
+  try{if('serviceWorker' in navigator)for(const r of await navigator.serviceWorker.getRegistrations())await r.unregister()}catch(_){}
+  try{if(window.caches)for(const k of await caches.keys())await caches.delete(k)}catch(_){}
+  location.reload();
+}
+function render(){try{draw()}catch(err){oops(err)}}
+function draw(){
   setDay();if(TODAY!==shownDay){shownDay=TODAY;newDay();U.gper={...CUR};U.qi=-1}
   const a=document.activeElement,keep=a&&a.dataset&&(a.dataset.f||a.dataset.fav||a.dataset.gstept),ks=a&&a.selectionStart;
   const R=route();
@@ -491,6 +503,7 @@ document.addEventListener('click',e=>{
   if(e.target.matches('[data-scrim]')){close();return}
   const t=e.target.closest('button');if(!t)return;const d=t.dataset;
   if(d.go){go(d.go);return}
+  if('fresh' in d){fresh();return}
   if('close' in d){close();return}
   if('undo' in d){undo();return}
   if(d.edit){const [k,i]=d.edit.split('|');const o=byId(D[COLL[k]],i);if(o)pop(k,o,false);return}

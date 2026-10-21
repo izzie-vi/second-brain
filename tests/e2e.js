@@ -69,7 +69,7 @@ const settle=p=>p.waitForTimeout(1600);
   await P.fill('form[data-form="rhythm"] input','Drink water');await P.press('form[data-form="rhythm"] input','Enter');
   await P.fill('form[data-form="task|now"] input','Return library books');await P.press('form[data-form="task|now"] input','Enter');
   await P.click('[data-pick]');
-  await P.click('[data-new="date"]');await P.fill('.modal [name=t]','Dentist');await P.fill('.modal [name=date]','2026-10-20');await P.click('.modal .btn.solid');
+  await P.click('[data-new="date"]');await P.fill('.modal [name=t]','Dentist');await P.fill('.modal [name=date]',await P.evaluate(()=>off(2)));await P.click('.modal .btn.solid');
   await shot(P,'04-days-phone');
   // Writing
   await P.click('nav [data-go="writing"]');await P.click('[data-new="project"]');await P.fill('.modal [name=t]','The Lighthouse');await P.click('.modal .btn.solid');
