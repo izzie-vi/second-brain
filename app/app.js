@@ -16,7 +16,8 @@ const GRADES=['Characters','Writing','Plot','Enjoyment'];
 function blank(){return {shelves:['favorites'],books:[],quotes:[],favs:{},projects:[],notes:[],tasks:[],dates:[],repeats:[],rhythm:[],rlog:{},goals:[],days:{},weeks:{},wraps:{},tlog:{},challenges:[],wheel:[],sessions:[]}}
 /* fill in anything missing so older or partial data never breaks a page */
 function fix(d){const b=blank();d=d&&typeof d==='object'&&!Array.isArray(d)?d:{};for(const k in b)if(!d[k]||typeof d[k]!=='object'||Array.isArray(d[k])!==Array.isArray(b[k]))d[k]=b[k];
-  d.books.forEach(x=>{x.sh=Array.isArray(x.sh)?x.sh:[];if(!Array.isArray(x.tags)){x.tags=(x.genre||'').split(',').map(t=>t.trim().toLowerCase()).filter(Boolean);delete x.genre}x.grades=x.grades&&typeof x.grades==='object'?x.grades:{};x.past=Array.isArray(x.past)?x.past:[];x.log=Array.isArray(x.log)?x.log:[]});d.challenges.forEach(c=>{c.prompts=Array.isArray(c.prompts)?c.prompts:[]});d.projects.forEach(x=>{x.sessions=Array.isArray(x.sessions)?x.sessions:[];if(!Array.isArray(x.docs)){x.docs=x.file?[{id:'doc'+x.id,name:'Scrivener',url:x.file}]:[];delete x.file}});return d}
+  for(const k of ['books','quotes','projects','notes','tasks','dates','repeats','rhythm','goals','challenges','sessions'])d[k]=d[k].filter(x=>x&&typeof x==='object'&&!Array.isArray(x));d.wheel=d.wheel.filter(x=>typeof x==='string');
+  d.books.forEach(x=>{x.sh=Array.isArray(x.sh)?x.sh:[];if(!Array.isArray(x.tags)){x.tags=String(x.genre||'').split(',').map(t=>t.trim().toLowerCase()).filter(Boolean);delete x.genre}x.grades=x.grades&&typeof x.grades==='object'?x.grades:{};x.past=Array.isArray(x.past)?x.past:[];x.log=Array.isArray(x.log)?x.log:[]});d.challenges.forEach(c=>{c.prompts=Array.isArray(c.prompts)?c.prompts:[]});d.projects.forEach(x=>{x.sessions=Array.isArray(x.sessions)?x.sessions:[];if(!Array.isArray(x.docs)){x.docs=x.file?[{id:'doc'+x.id,name:'Scrivener',url:x.file}]:[];delete x.file}});return d}
 let D=fix(Store.load());
 /* ---------- repeating tasks and dates ---------- */
 const dOf=s=>new Date(s+'T12:00:00');
@@ -475,12 +476,8 @@ let shownDay=TODAY;
 function oops(err){
   console.error(err);
   const m=document.getElementById('main');if(!m)return;
-  m.innerHTML=`<section class="sec oops"><h2>Something went wrong showing this page</h2><p class="hint">Your notes are safe. Tap below to load the newest version of the app.</p><p><button class="btn solid" data-fresh>Reload the app</button></p><p class="small">${esc(String(err&&err.message||err))}</p></section>`;
-}
-async function fresh(){
-  try{if('serviceWorker' in navigator)for(const r of await navigator.serviceWorker.getRegistrations())await r.unregister()}catch(_){}
-  try{if(window.caches)for(const k of await caches.keys())await caches.delete(k)}catch(_){}
-  location.reload();
+  m.innerHTML=`<section class="sec oops"><h2>Something went wrong showing this page</h2><p class="hint">Your notes are safe. Tap below to load the newest version of the app.</p><p><button class="btn solid" onclick="__fresh()">Reload the app</button></p><p class="small" style="word-break:break-word"></p></section>`;
+  m.querySelector('.oops .small').textContent=[...(window.__errs||[]),String(err&&err.stack||err&&err.message||err).split('\n').slice(0,3).join(' ')].join(' · ');
 }
 function render(){try{draw()}catch(err){oops(err)}}
 function draw(){
@@ -503,7 +500,6 @@ document.addEventListener('click',e=>{
   if(e.target.matches('[data-scrim]')){close();return}
   const t=e.target.closest('button');if(!t)return;const d=t.dataset;
   if(d.go){go(d.go);return}
-  if('fresh' in d){fresh();return}
   if('close' in d){close();return}
   if('undo' in d){undo();return}
   if(d.edit){const [k,i]=d.edit.split('|');const o=byId(D[COLL[k]],i);if(o)pop(k,o,false);return}
