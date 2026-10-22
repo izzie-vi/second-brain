@@ -68,7 +68,7 @@ const U={rf:{},rq:'',gedit:'',filter:'all',shelf:'',nf:'all',glvl:'year',gper:{.
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt=n=>Number(n||0).toLocaleString('en-US');
 const pct=(a,b)=>b?Math.max(0,Math.min(100,Math.round(a/b*100))):0;
-const byId=(arr,i)=>arr.find(x=>x.id===i);
+function byId(arr,i){return arr.find(x=>x.id===i)}
 const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const parse=s=>{const [y,m,d]=s.split('-').map(Number);return {y,m,d}};
 const nice=s=>{if(!s)return'';const p=parse(s);return `${MONTHS[p.m-1].slice(0,3)} ${p.d}`};
