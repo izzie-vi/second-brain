@@ -35,6 +35,10 @@ const at=async(p,day,h='08:00')=>{await p.clock.setFixedTime(new Date(`${day}T${
   if(!(await P.textContent('#main')).includes('Mon'))fail('repeat rule not shown');
   await at(P,'2026-10-13');if(await P.evaluate(()=>D.tasks.some(t=>t.from)))fail('unfinished repeating task should go away the next day');
   await at(P,'2026-10-19');if(await picked()!=='Water the plants')fail('not back next Monday');
+  // opening the app on a day a repeat is due (the start-up path, not a re-render) must not crash
+  await P.clock.setFixedTime(new Date('2026-10-26T08:00:00'));await P.reload();await P.waitForSelector('#nav button');await P.waitForTimeout(300);
+  if(await picked()!=='Water the plants')fail('repeat not made when the app opens on its day');
+  await P.clock.setFixedTime(new Date('2026-10-19T08:00:00'));await P.reload();await P.waitForSelector('#nav button');await P.waitForTimeout(300);
   await P.evaluate(()=>render());
   await P.click('nav [data-go="home"]');await P.click('.tiles [data-done]');await P.waitForTimeout(400);
   await at(P,'2026-10-20');if(!(await P.evaluate(()=>D.tasks.some(t=>t.from&&t.done==='2026-10-19'))))fail('done repeating task should stay in the done list');
